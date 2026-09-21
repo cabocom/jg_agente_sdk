@@ -27,6 +27,9 @@ dev = [
     "ruff>=0.4.0",
 ]
 
+[project.scripts]
+jg-sdk = "jg_sdk.cli:main"
+
 [project.entry-points."jg_agente.plugins"]
 # Plugins externos deben declarar aquí su punto de entrada:
 # mi_plugin = "mi_paquete.plugin:MiPlugin"

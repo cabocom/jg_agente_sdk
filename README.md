@@ -27,7 +27,37 @@ pip install -e jg_agente_sdk
 
 ---
 
-## 3. Guía de Desarrollo de Plugins
+## 3. CLI de Scaffolding: Inicialización Rápida de Plugins (`jg-sdk`)
+
+El SDK incluye una herramienta de línea de comandos para generar proyectos de plugins listos para producción con un solo comando:
+
+```bash
+# Inicializar un nuevo plugin con la plantilla estándar (tools + observer + rollback)
+jg-sdk plugin init mi_herramienta
+
+# Opciones avanzadas y plantillas:
+jg-sdk plugin init network_monitor --template standard --author "Mi Organización"
+jg-sdk plugin init simple_lookup   --template minimal
+jg-sdk plugin init complex_ops     --template full --path ./custom_dir/
+# Nota: 'jg-sdk init' sigue disponible como alias directo rápido.
+```
+
+### Opciones Disponibles (`jg-sdk plugin init --help`)
+- `-t, --template [minimal|standard|full]`:
+  - `minimal`: Plugin básico con una sola herramienta de lectura (`ToolType.READ`).
+  - `standard` (por defecto): Herramientas con schemas Pydantic, motor `ObserverEngine` y compensación reversible (`rollback_func`).
+  - `full`: Suite completa con `ObserverEngine`, `PlannerEngine`, `VerifierEngine` y herramientas mutacionales de alto riesgo.
+- `-p, --path <dir>`: Ruta de destino (por defecto `./jg_plugin_<nombre>`).
+- `-a, --author <nombre>`: Autor del plugin en metadatos.
+- `-d, --desc, --description <desc>`: Descripción breve del propósito del plugin.
+- `-f, --force`: Sobrescribe archivos si el directorio destino ya existe.
+
+
+Cada proyecto generado incluye `pyproject.toml` con el entry-point `[project.entry-points."jg_agente.plugins"]`, `.gitignore`, `README.md`, módulos estructurados y tests funcionales con `MockPluginRunner`.
+
+---
+
+## 4. Guía de Desarrollo de Plugins
 
 ### 3.1 Anatomía de un Plugin
 
@@ -149,7 +179,7 @@ deploy_tool = AgentTool(
 
 ---
 
-## 4. Registro y Empaquetado de Plugins
+## 5. Registro y Empaquetado de Plugins
 
 Para que `jg_agente` descubra automáticamente tu plugin instalado vía `pip`, declara el entry-point en el archivo `pyproject.toml` de tu plugin:
 
@@ -169,7 +199,7 @@ El `PluginManager` del orquestador descubrirá el plugin en tiempo de arranque, 
 
 ---
 
-## 5. Testing de Plugins con `MockPluginRunner`
+## 6. Testing de Plugins con `MockPluginRunner`
 
 El SDK incluye un arnés de pruebas (`MockPluginRunner`) para validar plugins localmente sin necesidad de levantar FastAPI, LangGraph ni PostgreSQL:
 
@@ -200,7 +230,7 @@ async def test_network_plugin():
 
 ---
 
-## 6. Cliente Criptográfico Inter-Servicio (`JGAgentClient`)
+## 7. Cliente Criptográfico Inter-Servicio (`JGAgentClient`)
 
 Para interactuar con la API REST de `jg_agente`, utiliza el cliente asíncrono `JGAgentClient`. Firma criptográficamente cada petición mediante **HMAC-SHA256** siguiendo el estándar canónico compartido con `jg_dashboard`:
 
@@ -241,7 +271,7 @@ El protocolo valida que el timestamp emitido en la cabecera `X-Timestamp` no exc
 
 ---
 
-## 7. Licencia y Modelo Dual (Open Source / Comercial Enterprise)
+## 8. Licencia y Modelo Dual (Open Source / Comercial Enterprise)
 
 Este SDK se distribuye bajo un esquema de **Doble Licenciamiento**:
 

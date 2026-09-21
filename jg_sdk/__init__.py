@@ -5,6 +5,7 @@ para desarrolladores de plugins y servicios clientes, con cero dependencias del
 orquestador interno (LangGraph/LangChain) o almacenamiento persistente.
 """
 
+from jg_sdk.cli import generate_plugin_scaffold, main
 from jg_sdk.client import (
     DEFAULT_MAX_TIMESTAMP_SKEW_SECONDS,
     AgentAuthError,
@@ -58,6 +59,9 @@ __version__ = "1.0.0"
 __all__ = [
     # Version
     "__version__",
+    # CLI y Scaffolding
+    "main",
+    "generate_plugin_scaffold",
     # Enums y Clasificaciones
     "RiskLevel",
     "ToolType",
@@ -105,3 +109,4 @@ __all__ = [
     # Harness de Testing
     "MockPluginRunner",
 ]
+
