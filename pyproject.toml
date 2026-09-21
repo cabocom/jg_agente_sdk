@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "SDK desacoplado y contratos públicos para el ecosistema de plugins y clientes de jg_agente"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "AGPL-3.0-or-later"
+license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "Javier Gálvez" }]
 keywords = ["agents", "ai", "plugins", "sdk", "contracts", "hmac"]
 classifiers = [
@@ -28,6 +28,7 @@ dev = [
 ]
 
 [project.scripts]
+jg = "jg_sdk.cli:main"
 jg-sdk = "jg_sdk.cli:main"
 
 [project.entry-points."jg_agente.plugins"]
@@ -50,6 +51,32 @@ testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+    ".venv",
+    "dist",
+    "build",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
+    "SIM",
+]
+ignore = [
+    "E501",
+    "B008",
+]
 
 [tool.pyrefly]
 python-interpreter-path = ".venv/bin/python"

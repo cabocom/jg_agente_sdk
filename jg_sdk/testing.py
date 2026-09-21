@@ -10,7 +10,13 @@ from typing import Any, Self
 
 from pydantic import BaseModel
 
-from jg_sdk.contracts import AgentTool, BaseEngine, BasePlugin, PluginMetadata, ToolResult
+from jg_sdk.contracts import (
+    AgentTool,
+    BaseEngine,
+    BasePlugin,
+    PluginMetadata,
+    ToolResult,
+)
 
 
 class MockPluginRunner:

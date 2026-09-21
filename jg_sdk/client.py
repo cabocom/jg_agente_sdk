@@ -306,7 +306,7 @@ class JGAgentClient:
         payload = agent_input.model_dump(mode="json")
         resp = await self.request(
             method="POST",
-            path="/api/v1/executions",
+            path="/executions/trigger",
             json_data=payload,
             correlation_id=correlation_id,
         )
@@ -317,7 +317,7 @@ class JGAgentClient:
         """Consulta el estado actual e historial de un hilo de ejecución."""
         resp = await self.request(
             method="GET",
-            path=f"/api/v1/executions/{thread_id}",
+            path=f"/executions/{thread_id}",
         )
         return ExecutionThreadDetail.model_validate(resp.json())
 
@@ -329,14 +329,14 @@ class JGAgentClient:
         notes: str | None = None,
     ) -> dict[str, Any]:
         """Emite una decisión de aprobación humana (HITL) para una ejecución pausada."""
+        endpoint = "approve" if approved else "reject"
         payload = {
-            "action": "approve" if approved else "reject",
             "approver": approver,
             "notes": notes,
         }
         resp = await self.request(
             method="POST",
-            path=f"/api/v1/executions/{thread_id}/approve",
+            path=f"/executions/{thread_id}/{endpoint}",
             json_data=payload,
         )
         return resp.json()
@@ -345,7 +345,7 @@ class JGAgentClient:
         """Cancela la ejecución de un hilo activo."""
         resp = await self.request(
             method="POST",
-            path=f"/api/v1/executions/{thread_id}/cancel",
+            path=f"/executions/{thread_id}/reject",
         )
         return resp.json()
 

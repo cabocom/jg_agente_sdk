@@ -392,11 +392,9 @@ class BaseEngine(ABC):
 
     async def startup(self) -> None:  # noqa: B027
         """Hook opcional de inicio del motor para adquirir recursos o conexiones."""
-        pass
 
     async def shutdown(self) -> None:  # noqa: B027
         """Hook opcional de finalización del motor para liberar recursos o conexiones."""
-        pass
 
 
 class ObserverEngine(BaseEngine, ABC):
@@ -456,11 +454,9 @@ class BasePlugin(ABC):
 
     async def startup(self) -> None:  # noqa: B027
         """Hook asíncrono ejecutado durante el arranque del agente para inicializar el plugin."""
-        pass
 
     async def shutdown(self) -> None:  # noqa: B027
         """Hook asíncrono ejecutado durante el apagado del agente para liberar recursos."""
-        pass
 
     async def health_check(self) -> dict[str, Any]:
         """Verifica la operatividad del plugin y sus dependencias externas."""

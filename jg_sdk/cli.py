@@ -7,7 +7,9 @@ el ecosistema jg_agente de forma estandarizada y determinista.
 from __future__ import annotations
 
 import argparse
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -74,12 +76,10 @@ def generate_plugin_scaffold(
     out_dir = target_dir if target_dir is not None else Path(pkg_name)
     out_dir = out_dir.resolve()
 
-    if out_dir.exists() and not force:
-        # Si el directorio existe y tiene contenido, rechazar
-        if any(out_dir.iterdir()):
-            raise FileExistsError(
-                f"El directorio de destino '{out_dir}' ya existe y no está vacío. Usa --force para sobrescribir."
-            )
+    if out_dir.exists() and not force and any(out_dir.iterdir()):
+        raise FileExistsError(
+            f"El directorio de destino '{out_dir}' ya existe y no está vacío. Usa --force para sobrescribir."
+        )
 
     # 1. Definir contenidos de archivos según template
     pyproject_content = f"""[project]
@@ -634,7 +634,6 @@ async def test_tools():
     # 2. Calcular ruta relativa hacia el SDK local
     sdk_root = Path(__file__).resolve().parent.parent
     try:
-        import os
         rel_sdk_path = os.path.relpath(sdk_root, out_dir)
     except ValueError:
         rel_sdk_path = str(sdk_root)
@@ -734,25 +733,265 @@ Para activarlo en el contenedor o proceso del agente, añade el nombre del plugi
 ```bash
 ENABLED_PLUGINS={pkg_name}
 ```
+
+## 5. Entorno Autónomo Docker Compose y Migraciones
+El plugin incluye una suite Docker Compose completa (`docker-compose.yml`) para pruebas locales:
+- **Control Plane:** Panel Web HITL en `http://localhost:8880/admin` (`admin@local.test` / `admin123456`).
+- **Execution Plane:** Runtime `jg_agente` con tu plugin en `http://localhost:8881`.
+- **Script de Arranque (`docker/entrypoint.sh`):** Al levantar el stack, el agente ejecuta automáticamente `alembic upgrade head` para garantizar la creación y consistencia de las tablas troncales (`core_executions`, `core_audit_records`) en PostgreSQL antes de inicializar el servidor FastAPI.
+- **Configuración de LLM:** Configura tu `GROQ_API_KEY` en el archivo `.env` para habilitar el razonamiento cognitivo.
+
+Para iniciar el entorno:
+```bash
+jg run
+```
+"""
+
+    # 4. Detectar si existe clave LLM y modelo en el entorno para prellenar .env y docker-compose
+    detected_groq_key = os.environ.get("GLOBAL_GROQ_API_KEY") or os.environ.get("GROQ_API_KEY", "")
+    detected_llm_model = os.environ.get("LLM_MODEL", "")
+    if not detected_groq_key or not detected_llm_model:
+        # Buscar en archivo .env en directorio actual o padres
+        for env_dir in [out_dir, *out_dir.parents]:
+            cand_env = env_dir / ".env"
+            if cand_env.is_file():
+                for line in cand_env.read_text(encoding="utf-8", errors="ignore").splitlines():
+                    if (line.startswith("GLOBAL_GROQ_API_KEY=") or line.startswith("GROQ_API_KEY=")) and not detected_groq_key:
+                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if val:
+                            detected_groq_key = val
+                    elif line.startswith("LLM_MODEL=") and not detected_llm_model:
+                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if val:
+                            detected_llm_model = val
+            if detected_groq_key and detected_llm_model:
+                break
+
+    if not detected_llm_model:
+        detected_llm_model = "openai/gpt-oss-120b"
+
+    # 5. Generar docker-compose.yml autónomo con Dashboard, Agente y PostgreSQL
+    docker_compose_content = f"""# ==============================================================================
+# Entorno autónomo y determinista para {pkg_name}
+# Incluye Control Plane (Dashboard Laravel), Execution Plane (jg_agente) y PostgreSQL
+# ==============================================================================
+services:
+  # ============================================================================
+  # 1. Base de datos PostgreSQL para el Control Plane (Dashboard)
+  # ============================================================================
+  jg_dashboard_postgres:
+    image: postgres:16-alpine
+    container_name: jg_dashboard_postgres_{raw_slug}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${{DB_DATABASE:-jg_dashboard}}
+      POSTGRES_USER: ${{DB_USERNAME:-postgres}}
+      POSTGRES_PASSWORD: ${{DB_PASSWORD:-postgres}}
+    volumes:
+      - jg_dashboard_postgres_data:/var/lib/postgresql/data
+    # Oculto por defecto en el host para aislamiento de seguridad.
+    # Descomente las siguientes líneas si desea conectarse desde un cliente SQL en el host:
+    # ports:
+    #   - "${{JG_DASHBOARD_DB_PORT:-8882}}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${{DB_USERNAME:-postgres}} -d ${{DB_DATABASE:-jg_dashboard}}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jg_network
+
+  # ============================================================================
+  # 2. Panel Web de Control y Gobernanza HITL (Dashboard Laravel)
+  # ============================================================================
+  jg_dashboard:
+    image: registry.cabocom.net/javiergalvez-ia/jg_dashboard:latest
+    container_name: jg_dashboard_{raw_slug}
+    restart: unless-stopped
+    depends_on:
+      jg_dashboard_postgres:
+        condition: service_healthy
+    environment:
+      APP_NAME: "jG Dashboard - {class_prefix}"
+      APP_ENV: ${{APP_ENV:-local}}
+      APP_KEY: "${{APP_KEY:-base64:u/pQ9k8q3N0vQzW3mY8l4xJ1t5R6w7y8z9a0b1c2d3E=}}"
+      APP_DEBUG: ${{APP_DEBUG:-true}}
+      APP_URL: ${{APP_URL:-http://localhost:8880}}
+      DB_CONNECTION: pgsql
+      DB_HOST: jg_dashboard_postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${{DB_DATABASE:-jg_dashboard}}
+      DB_USERNAME: ${{DB_USERNAME:-postgres}}
+      DB_PASSWORD: ${{DB_PASSWORD:-postgres}}
+      JG_AGENTE_API_URL: http://jg_agente_{raw_slug}:8000
+      JG_AGENTE_SECRET: "${{JG_AGENTE_SECRET:-secret_dev_token_12345}}"
+      # Variables de compatibilidad interna para versiones anteriores de imagen dashboard
+      JG_CONVERSATIONAL_SECRET: "${{JG_AGENTE_SECRET:-secret_dev_token_12345}}"
+      JG_DEVOPS_SECRET: "${{JG_AGENTE_SECRET:-secret_dev_token_12345}}"
+      ADMIN_EMAIL: ${{ADMIN_EMAIL:-admin@local.test}}
+      ADMIN_DEFAULT_PASSWORD: "${{ADMIN_DEFAULT_PASSWORD:-admin123456}}"
+      RUN_MIGRATIONS: ${{RUN_MIGRATIONS:-true}}
+    ports:
+      - "${{DASHBOARD_PORT:-8880}}:8080"
+    networks:
+      - jg_network
+
+  # ============================================================================
+  # 3. Base de datos PostgreSQL para el Agente Cognitivo (Checkpointer / State)
+  # ============================================================================
+  jg_agente_postgres:
+    image: postgres:16-alpine
+    container_name: jg_agente_postgres_{raw_slug}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${{JG_AGENTE_POSTGRES_DB:-jg_agente}}
+      POSTGRES_USER: ${{JG_AGENTE_POSTGRES_USER:-postgres}}
+      POSTGRES_PASSWORD: ${{JG_AGENTE_POSTGRES_PASSWORD:-postgres}}
+    volumes:
+      - jg_agente_postgres_data:/var/lib/postgresql/data
+    # Oculto por defecto en el host para aislamiento de seguridad.
+    # Descomente las siguientes líneas si desea conectarse desde un cliente SQL en el host:
+    # ports:
+    #   - "${{JG_AGENTE_POSTGRES_PORT:-8883}}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${{JG_AGENTE_POSTGRES_USER:-postgres}} -d ${{JG_AGENTE_POSTGRES_DB:-jg_agente}}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jg_network
+
+  # ============================================================================
+  # 4. Agente Cognitivo con plugin {pkg_name} montado
+  # ============================================================================
+  jg_agente_{raw_slug}:
+    image: registry.cabocom.net/javiergalvez-ia/jg_agente:latest
+    container_name: jg_agente_{raw_slug}
+    restart: unless-stopped
+    depends_on:
+      jg_agente_postgres:
+        condition: service_healthy
+    entrypoint: ["/app/docker-entrypoint.sh"]
+    environment:
+      ENV: ${{ENV:-development}}
+      AGENT_ID: ${{AGENT_ID:-a0000000-0000-0000-0000-000000000001}}
+      AGENT_NAME: "{class_prefix} Agent"
+      PERMANENT_AGENT_SECRET: "${{JG_AGENTE_SECRET:-secret_dev_token_12345}}"
+      AGENT_PORT: 8000
+      AGENT_API_URL: http://jg_agente_{raw_slug}:8000
+      POSTGRES_HOST: jg_agente_postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${{JG_AGENTE_POSTGRES_USER:-postgres}}
+      POSTGRES_PASSWORD: ${{JG_AGENTE_POSTGRES_PASSWORD:-postgres}}
+      POSTGRES_DB: ${{JG_AGENTE_POSTGRES_DB:-jg_agente}}
+      DATABASE_URL: postgresql+asyncpg://${{JG_AGENTE_POSTGRES_USER:-postgres}}:${{JG_AGENTE_POSTGRES_PASSWORD:-postgres}}@jg_agente_postgres:5432/${{JG_AGENTE_POSTGRES_DB:-jg_agente}}
+      DASHBOARD_URL: ${{DASHBOARD_URL:-http://jg_dashboard:8080}}
+      VERIFY_CREDENTIALS_ON_BOOT: "false"
+      ENABLE_HEARTBEAT: "true"
+      LLM_PROVIDER: ${{LLM_PROVIDER:-groq}}
+      LLM_MODEL: ${{LLM_MODEL:-{detected_llm_model}}}
+      LLM_API_KEY: ${{GLOBAL_GROQ_API_KEY:-${{GROQ_API_KEY:-}}}}
+      GROQ_API_KEY: ${{GLOBAL_GROQ_API_KEY:-${{GROQ_API_KEY:-}}}}
+      PLUGINS_DIR: plugins
+      ENABLED_PLUGINS: {raw_slug},{pkg_name}
+    volumes:
+      - ./{pkg_name}:/app/plugins/{pkg_name}:ro
+      - ./docker/entrypoint.sh:/app/docker-entrypoint.sh:ro
+    ports:
+      - "127.0.0.1:${{AGENT_PORT:-8881}}:8000"
+    networks:
+      - jg_network
+
+networks:
+  jg_network:
+    driver: bridge
+
+volumes:
+  jg_dashboard_postgres_data:
+  jg_agente_postgres_data:
+"""
+
+    # 6. Generar script de arranque limpio para el contenedor del agente (docker/entrypoint.sh)
+    # Reemplaza el comando inline 'sh -c alembic upgrade head && ...' por un entrypoint profesional
+    docker_entrypoint_content = f"""#!/bin/sh
+set -e
+
+# ==============================================================================
+# Entrypoint de arranque determinista para jg_agente ({pkg_name})
+# ==============================================================================
+# ¿Qué hace este script?
+# 1. Ejecución de Migraciones Troncales (Alembic):
+#    Aplica 'alembic upgrade head' contra la base de datos PostgreSQL del agente.
+#    Esto crea y sincroniza las tablas troncales requeridas por el Core:
+#      - core_executions: Persistencia de estado del grafo y ejecuciones HITL.
+#      - core_audit_records: Registro inmutable de auditoría y decisiones humanas.
+#    Evita errores 'relation core_executions does not exist' al recibir peticiones.
+#
+# 2. Inicialización del Servidor Web (Uvicorn):
+#    Lanza FastAPI con el número de workers configurados escuchando en AGENT_PORT.
+# ==============================================================================
+
+echo "🔄 [jg_agente] Aplicando migraciones de base de datos troncales (alembic upgrade head)..."
+alembic upgrade head
+
+echo "🚀 [jg_agente] Migraciones aplicadas con éxito. Iniciando Execution Plane en puerto ${{AGENT_PORT:-8000}}..."
+exec uvicorn app.main:app --host 0.0.0.0 --port "${{AGENT_PORT:-8000}}" --workers "${{UVICORN_WORKERS:-2}}"
+"""
+
+    env_example_content = f"""# Configuración del entorno de desarrollo para el plugin
+ENV=development
+GROQ_API_KEY=
+LLM_PROVIDER=groq
+LLM_MODEL={detected_llm_model}
+JG_AGENTE_SECRET=secret_dev_token_12345
+ADMIN_EMAIL=admin@local.test
+ADMIN_DEFAULT_PASSWORD=admin123456
+"""
+
+    env_content = f"""# Variables de entorno locales generadas para {pkg_name}
+ENV=development
+GROQ_API_KEY={detected_groq_key}
+GLOBAL_GROQ_API_KEY={detected_groq_key}
+LLM_PROVIDER=groq
+LLM_MODEL={detected_llm_model}
+JG_AGENTE_SECRET=secret_dev_token_12345
+ADMIN_EMAIL=admin@local.test
+ADMIN_DEFAULT_PASSWORD=admin123456
 """
 
     # 3. Creación de directorios y escritura de archivos
     pkg_dir = out_dir / pkg_name
     tests_dir = out_dir / "tests"
+    docker_dir = out_dir / "docker"
 
     pkg_dir.mkdir(parents=True, exist_ok=True)
     tests_dir.mkdir(parents=True, exist_ok=True)
+    docker_dir.mkdir(parents=True, exist_ok=True)
 
     (out_dir / "pyproject.toml").write_text(pyproject_content, encoding="utf-8")
     (out_dir / ".gitignore").write_text(gitignore_content, encoding="utf-8")
     (out_dir / "README.md").write_text(readme_content, encoding="utf-8")
+    (out_dir / "docker-compose.yml").write_text(docker_compose_content, encoding="utf-8")
+    (out_dir / ".env.example").write_text(env_example_content, encoding="utf-8")
+    (out_dir / ".env").write_text(env_content, encoding="utf-8")
+
+    # Script docker/entrypoint.sh ejecutable
+    agent_entrypoint_file = docker_dir / "entrypoint.sh"
+    agent_entrypoint_file.write_text(docker_entrypoint_content, encoding="utf-8")
+    agent_entrypoint_file.chmod(agent_entrypoint_file.stat().st_mode | 0o755)
 
     install_file = out_dir / "install.sh"
     install_file.write_text(install_script_content, encoding="utf-8")
     install_file.chmod(install_file.stat().st_mode | 0o755)
 
+    # Añadir exportación PLUGIN_CLASS para autodescubrimiento local en jg_agente
+    plugin_file_content_with_class = (
+        plugin_file_content.rstrip()
+        + f"\n\n\n# Exportación canónica para autodescubrimiento en PLUGINS_DIR\nPLUGIN_CLASS = {plugin_class_name}\n"
+    )
+
     (pkg_dir / "__init__.py").write_text(init_content, encoding="utf-8")
-    (pkg_dir / "plugin.py").write_text(plugin_file_content, encoding="utf-8")
+    (pkg_dir / "plugin.py").write_text(plugin_file_content_with_class, encoding="utf-8")
     (pkg_dir / "tools.py").write_text(tools_content, encoding="utf-8")
 
     if engines_file_content:
@@ -764,13 +1003,191 @@ ENABLED_PLUGINS={pkg_name}
     return out_dir
 
 
+def _find_plugin_root() -> Path:
+    """Busca la raíz del plugin buscando pyproject.toml o install.sh desde el directorio actual hacia arriba."""
+    curr = Path.cwd().resolve()
+    for parent in [curr, *curr.parents]:
+        if (parent / "pyproject.toml").is_file() or (parent / "install.sh").is_file():
+            return parent
+    return curr
+
+
+def handle_install() -> int:
+    """Instala las dependencias del plugin y aprovisiona el entorno virtual (.venv)."""
+    plugin_root = _find_plugin_root()
+    install_script = plugin_root / "install.sh"
+    if install_script.exists():
+        print(f"🚀 Ejecutando aprovisionamiento con {install_script.name}...")
+        res = subprocess.run(["bash", str(install_script)], cwd=plugin_root)
+        if res.returncode == 0:
+            print("\n✨ Dependencias del plugin instaladas con éxito.")
+        return res.returncode
+
+    venv_dir = plugin_root / ".venv"
+    print(f"⚙️ Creando entorno virtual .venv en {venv_dir}...")
+    res_venv = subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], cwd=plugin_root)
+    if res_venv.returncode != 0:
+        print("❌ Falló la creación de .venv", file=sys.stderr)
+        return res_venv.returncode
+    pip_bin = venv_dir / "bin" / "pip"
+    res_pip = subprocess.run([str(pip_bin), "install", "-e", "."], cwd=plugin_root)
+    if res_pip.returncode == 0:
+        print("\n✨ Dependencias del plugin instaladas con éxito.")
+    return res_pip.returncode
+
+
+def handle_dev(command: list[str] | None = None) -> int:
+    """Habilita y activa el entorno virtual de desarrollo (.venv) para el plugin."""
+    plugin_root = _find_plugin_root()
+    venv_dir = plugin_root / ".venv"
+    venv_python = venv_dir / "bin" / "python"
+
+    if not venv_python.exists():
+        print(f"📦 Entorno virtual no encontrado en: {venv_dir}")
+        install_script = plugin_root / "install.sh"
+        if install_script.exists():
+            print(f"🚀 Ejecutando script de instalación {install_script.name}...")
+            res = subprocess.run(["bash", str(install_script)], cwd=plugin_root)
+            if res.returncode != 0:
+                print("❌ Falló la preparación del entorno con install.sh", file=sys.stderr)
+                return res.returncode
+        else:
+            print("⚙️ Creando entorno virtual .venv...")
+            res_venv = subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], cwd=plugin_root)
+            if res_venv.returncode != 0:
+                print("❌ Falló la creación de .venv", file=sys.stderr)
+                return res_venv.returncode
+            pip_bin = venv_dir / "bin" / "pip"
+            subprocess.run([str(pip_bin), "install", "-e", "."], cwd=plugin_root)
+
+    new_env = os.environ.copy()
+    new_env["VIRTUAL_ENV"] = str(venv_dir)
+    new_env["PATH"] = f"{venv_dir / 'bin'}:{new_env.get('PATH', '')}"
+    new_env.pop("PYTHONHOME", None)
+
+    # Si se pasaron comandos específicos a ejecutar: e.g. jg-sdk dev pytest
+    if command:
+        cmd = list(command)
+        bin_candidate = venv_dir / "bin" / cmd[0]
+        if bin_candidate.exists():
+            cmd[0] = str(bin_candidate)
+        res = subprocess.run(cmd, env=new_env, cwd=plugin_root)
+        return res.returncode
+
+    # Modo interactivo: spawn de subshell enriquecido
+    shell = os.environ.get("SHELL", "/bin/bash")
+    print("=" * 65)
+    print("🚀 Entorno de desarrollo interactivo activado (.venv)")
+    print(f"📁 Directorio raíz:  {plugin_root}")
+    print(f"🐍 Python binario:   {venv_python}")
+    print("🛠️  Herramientas:     pytest, ruff, jg-sdk")
+    print("💡 Escribe 'exit' para salir del entorno virtual.")
+    print("=" * 65)
+
+    try:
+        res = subprocess.run([shell], env=new_env, cwd=plugin_root)
+        print("\n👋 Saliste del entorno de desarrollo.")
+        return res.returncode
+    except Exception as exc:
+        print(f"❌ Error al iniciar subshell: {exc}", file=sys.stderr)
+        return 1
+
+
+def handle_run(args: argparse.Namespace) -> int:
+    """Lanza o gestiona el entorno Docker Compose autónomo del plugin."""
+    plugin_root = _find_plugin_root()
+    compose_file: Path | None = None
+    for candidate in ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]:
+        p = plugin_root / candidate
+        if p.exists():
+            compose_file = p
+            break
+
+    if not compose_file:
+        print(
+            f"❌ No se encontró 'docker-compose.yml' en {plugin_root}.\n"
+            "Asegúrate de ejecutar 'jg run' dentro del directorio de tu plugin.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if getattr(args, "down", False):
+        print("🛑 Deteniendo entorno Docker Compose...")
+        return subprocess.run(["docker", "compose", "-f", str(compose_file), "down"], cwd=plugin_root).returncode
+
+    if getattr(args, "logs", False):
+        return subprocess.run(["docker", "compose", "-f", str(compose_file), "logs", "-f"], cwd=plugin_root).returncode
+
+    if getattr(args, "status", False):
+        return subprocess.run(["docker", "compose", "-f", str(compose_file), "ps"], cwd=plugin_root).returncode
+
+    cmd = ["docker", "compose", "-f", str(compose_file), "up", "-d"]
+    if getattr(args, "build", False):
+        cmd.append("--build")
+
+    env = os.environ.copy()
+    agent_port = getattr(args, "agent_port", None) or getattr(args, "port", None)
+    if agent_port is not None:
+        env["AGENT_PORT"] = str(agent_port)
+    dashboard_port = getattr(args, "dashboard_port", None)
+    if dashboard_port is not None:
+        env["DASHBOARD_PORT"] = str(dashboard_port)
+    host = getattr(args, "host", None)
+    if host is not None:
+        env["HOST"] = str(host)
+
+    effective_agent_port = env.get("AGENT_PORT", "8881")
+    effective_dashboard_port = env.get("DASHBOARD_PORT", "8880")
+
+    print(f"🐳 Iniciando stack Docker Compose autónomo ({compose_file.name})...")
+    res = subprocess.run(cmd, cwd=plugin_root, env=env)
+    if res.returncode != 0:
+        return res.returncode
+
+    # Limpieza preventiva de agentes demo huérfanos en imágenes anteriores del dashboard
+    subprocess.run(
+        [
+            "docker", "compose", "-f", str(compose_file), "exec", "-T", "jg_dashboard",
+            "php", "artisan", "tinker", "--execute=\\App\\Models\\Agent::where('agent_id', 'a0000000-0000-0000-0000-000000000002')->delete();"
+        ],
+        cwd=plugin_root,
+        capture_output=True,
+    )
+
+    # Mostrar puertos y servicios configurados
+    print("\n" + "=" * 65)
+    print("✨ Stack autónomo de jg_agente iniciado correctamente")
+    print("=" * 65)
+    print("📍 Puntos de acceso disponibles:")
+    print(f"   🌐 Dashboard Web HITL:      http://localhost:{effective_dashboard_port}/admin")
+    print(f"   🤖 Agente API REST:         http://localhost:{effective_agent_port}")
+    print(f"   🔍 Capacidades Plugins:     http://localhost:{effective_agent_port}/capabilities")
+    print(f"   🩺 Comprobación de Salud:   http://localhost:{effective_agent_port}/health")
+    print("   🗄️ PostgreSQL Dashboard:   Interno (red privada Docker, host 8882 desactivado)")
+    print("   🗄️ PostgreSQL Agente:      Interno (red privada Docker, host 8883 desactivado)")
+    print("\n🔐 Credenciales de acceso al Dashboard:")
+    print("   • URL:                      http://localhost:8880/admin")
+    print("   • Usuario:                  admin@local.test")
+    print("   • Contraseña:               admin123456")
+    print("\n💡 Comandos de gestión rápida:")
+    print("   • Ver logs en tiempo real:  jg run -l")
+    print("   • Ver estado de servicios:  jg run -s")
+    print("   • Detener el entorno:       jg run --down")
+    print("=" * 65)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Punto de entrada principal para la CLI jg-sdk."""
+    """Punto de entrada principal para la CLI jg / jg-sdk."""
+    prog_name = Path(sys.argv[0]).name if sys.argv and sys.argv[0] else "jg"
+    if not prog_name.startswith("jg"):
+        prog_name = "jg"
+
     parser = argparse.ArgumentParser(
-        prog="jg-sdk",
+        prog=prog_name,
         description="CLI para desarrollo y scaffolding de plugins en la plataforma jg_agente.",
     )
-    parser.add_argument("--version", action="version", version="jg-sdk 1.0.0")
+    parser.add_argument("--version", action="version", version=f"{prog_name} 1.0.0")
 
     subparsers = parser.add_subparsers(dest="subcommand", help="Comandos disponibles")
 
@@ -839,11 +1256,102 @@ def main(argv: list[str] | None = None) -> int:
     )
     _configure_init_args(init_parser)
 
+    # 3. Subcomando 'install'
+    subparsers.add_parser(
+        "install",
+        help="Instala las dependencias del plugin y prepara el entorno virtual (.venv).",
+        description="Ejecuta 'install.sh' o inicializa '.venv' instalando el SDK y el plugin en modo editable.",
+    )
+
+    # 4. Subcomando 'dev'
+    dev_parser = subparsers.add_parser(
+        "dev",
+        help="Habilita el entorno virtual (.venv) o ejecuta comandos dentro de él.",
+    )
+    dev_parser.add_argument(
+        "command",
+        nargs=argparse.REMAINDER,
+        help="Comando opcional a ejecutar dentro de .venv (ej. 'pytest', 'ruff check .').",
+    )
+
+    # 5. Subcomando 'run'
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Lanza el stack Docker Compose autónomo (Dashboard :8880, Agente :8881, PostgreSQL).",
+        description=(
+            "Lanza el entorno Docker Compose autónomo del plugin.\n"
+            "El agente arranca mediante el script limpio 'docker/entrypoint.sh', aplicando automáticamente\n"
+            "las migraciones troncales de base de datos ('alembic upgrade head') para crear y sincronizar\n"
+            "las tablas 'core_executions' y 'core_audit_records' antes de iniciar el servidor web Uvicorn."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    run_parser.add_argument(
+        "-d",
+        "--down",
+        action="store_true",
+        help="Detiene todos los contenedores del entorno Docker Compose.",
+    )
+    run_parser.add_argument(
+        "-l",
+        "--logs",
+        action="store_true",
+        help="Muestra los logs en tiempo real de los servicios.",
+    )
+    run_parser.add_argument(
+        "-b",
+        "--build",
+        action="store_true",
+        help="Reconstruye las imágenes antes de levantar el stack.",
+    )
+    run_parser.add_argument(
+        "-s",
+        "--status",
+        action="store_true",
+        help="Muestra el estado actual de los contenedores del stack.",
+    )
+    run_parser.add_argument(
+        "--host",
+        type=str,
+        default=None,
+        help="Dirección IP o interfaz de enlace para exponer los servicios (ej. '127.0.0.1' o '0.0.0.0').",
+    )
+    run_parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Puerto en el host para el runtime del agente (por defecto 8881).",
+    )
+    run_parser.add_argument(
+        "--agent-port",
+        type=int,
+        default=None,
+        help="Puerto en el host para el agente (alias descriptivo de --port).",
+    )
+    run_parser.add_argument(
+        "--dashboard-port",
+        type=int,
+        default=None,
+        help="Puerto en el host para el Dashboard Web HITL (por defecto 8880).",
+    )
+
     args = parser.parse_args(argv)
 
     if not args.subcommand:
         parser.print_help()
         return 0
+
+    if args.subcommand == "install":
+        return handle_install()
+
+    if args.subcommand == "dev":
+        raw_cmd = args.command
+        if raw_cmd and raw_cmd[0] == "--":
+            raw_cmd = raw_cmd[1:]
+        return handle_dev(raw_cmd)
+
+    if args.subcommand == "run":
+        return handle_run(args)
 
     is_plugin_init = args.subcommand == "plugin" and getattr(args, "plugin_subcommand", None) == "init"
     is_direct_init = args.subcommand == "init"
@@ -867,6 +1375,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  📁 {created_dir.name}/")
             print("  ├── install.sh                  <-- Script de aprovisionamiento (.venv + SDK local)")
             print("  ├── pyproject.toml")
+            print("  ├── docker-compose.yml          <-- Stack autónomo (Dashboard :8880, Agente :8881)")
             print("  ├── README.md")
             print("  ├── .gitignore")
             print("  ├── tests/test_plugin.py")
@@ -874,9 +1383,11 @@ def main(argv: list[str] | None = None) -> int:
             print("\nPróximos pasos:")
             target_display = created_dir.name if args.path is None else created_dir
             print(f"  1. cd {target_display}")
-            print("  2. ./install.sh")
-            print("  3. source .venv/bin/activate")
-            print("  4. pytest tests/")
+            print("  2. jg dev                       <-- Activa entorno virtual y dependencias (.venv)")
+            print("  3. jg run                       <-- Levanta stack autónomo en Docker (:8880 / :8881)")
+            print("\n🔐 Credenciales de acceso al Dashboard (http://localhost:8880/admin):")
+            print("  • Usuario:    admin@local.test")
+            print("  • Contraseña: admin123456")
             return 0
         except FileExistsError as exc:
             print(f"❌ Error: {exc}", file=sys.stderr)

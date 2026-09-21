@@ -1,7 +1,9 @@
 """Pruebas unitarias para la CLI de scaffolding (jg_sdk.cli)."""
 
 from pathlib import Path
+
 import pytest
+
 from jg_sdk.cli import _sanitize_name, _to_pascal_case, generate_plugin_scaffold, main
 
 
@@ -154,10 +156,38 @@ def test_main_cli_help_and_version(capsys: pytest.CaptureFixture[str]):
     ret = main([])
     assert ret == 0
     captured = capsys.readouterr()
-    assert "usage: jg-sdk" in captured.out
+    assert "usage: jg" in captured.out
 
     ret_plugin = main(["plugin"])
     assert ret_plugin == 0
     captured_plugin = capsys.readouterr()
-    assert "usage: jg-sdk plugin" in captured_plugin.out
+    assert "usage: jg" in captured_plugin.out
+
+
+def test_main_cli_dev_and_run_help(capsys: pytest.CaptureFixture[str]):
+    """Prueba que los subcomandos dev y run respondan a --help."""
+    with pytest.raises(SystemExit) as exc_dev:
+        main(["dev", "--help"])
+    assert exc_dev.value.code == 0
+    captured_dev = capsys.readouterr()
+    assert "dev" in captured_dev.out
+
+    with pytest.raises(SystemExit) as exc_run:
+        main(["run", "--help"])
+    assert exc_run.value.code == 0
+    captured_run = capsys.readouterr()
+    assert "run" in captured_run.out
+
+
+def test_cli_run_without_compose(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    """Verifica que run informe error si no existe docker-compose.yml."""
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+    monkeypatch.chdir(empty_dir)
+
+    ret = main(["run"])
+    assert ret == 1
+    captured = capsys.readouterr()
+    assert "No se encontró 'docker-compose.yml'" in captured.err
+
 
