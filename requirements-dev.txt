@@ -1,0 +1,7 @@
+# Dependencias de desarrollo, linting y pruebas unitarias para jg_agente_sdk
+# Equivalente a pip install -e ".[dev]" vía pyproject.toml
+
+-r requirements.txt
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+ruff>=0.4.0

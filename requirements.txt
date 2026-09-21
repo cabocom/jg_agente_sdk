@@ -1,0 +1,8 @@
+# Dependencias base de producción para jg_agente_sdk
+# NOTA DE ARQUITECTURA:
+# La fuente de verdad canónica para la distribución de esta librería (PyPI / pip install)
+# está declarada en pyproject.toml bajo [project.dependencies].
+# Este archivo se proporciona por conveniencia para herramientas de entorno local y CI/CD.
+
+pydantic>=2.5.0
+httpx>=0.25.0

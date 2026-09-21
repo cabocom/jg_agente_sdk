@@ -1,0 +1,53 @@
+[project]
+name = "jg-agente-sdk"
+version = "1.0.0"
+description = "SDK desacoplado y contratos públicos para el ecosistema de plugins y clientes de jg_agente"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "AGPL-3.0-or-later"
+authors = [{ name = "Javier Gálvez" }]
+keywords = ["agents", "ai", "plugins", "sdk", "contracts", "hmac"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = [
+    "pydantic>=2.5.0",
+    "httpx>=0.25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+]
+
+[project.entry-points."jg_agente.plugins"]
+# Plugins externos deben declarar aquí su punto de entrada:
+# mi_plugin = "mi_paquete.plugin:MiPlugin"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["jg_sdk*"]
+exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.pyrefly]
+python-interpreter-path = ".venv/bin/python"
+
