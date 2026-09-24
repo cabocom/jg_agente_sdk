@@ -89,11 +89,7 @@ publish:pypi:
     - python -m pip install --upgrade pip
     - pip install twine
   script:
-    - |
-      if [ -z "$PYPI_TOKEN" ]; then
-        echo "❌ ERROR: Variable PYPI_TOKEN no configurada en las variables de CI/CD de GitLab."
-        exit 1
-      fi
+    - test -n "$PYPI_TOKEN" || (echo "❌ ERROR: Variable PYPI_TOKEN no configurada en las variables de CI/CD de GitLab." && exit 1)
     - echo "🚀 Publicando jg-agente-sdk en PyPI oficial (pypi.org)..."
     - TWINE_USERNAME="__token__" TWINE_PASSWORD="$PYPI_TOKEN" python -m twine upload --skip-existing dist/*
     - echo "✅ ¡Paquete publicado exitosamente en PyPI! Instalable con: pip install jg-agente-sdk"
