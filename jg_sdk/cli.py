@@ -11,7 +11,10 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
+
+import httpx
 
 
 def _to_pascal_case(snake_str: str) -> str:
@@ -57,7 +60,9 @@ def generate_plugin_scaffold(
     """
     valid_templates = {"minimal", "standard", "full"}
     if template not in valid_templates:
-        raise ValueError(f"Plantilla desconocida '{template}'. Opciones válidas: {sorted(valid_templates)}")
+        raise ValueError(
+            f"Plantilla desconocida '{template}'. Opciones válidas: {sorted(valid_templates)}"
+        )
 
     base_name = _sanitize_name(name)
     if base_name.startswith("jg_plugin_"):
@@ -756,7 +761,9 @@ jg run
             cand_env = env_dir / ".env"
             if cand_env.is_file():
                 for line in cand_env.read_text(encoding="utf-8", errors="ignore").splitlines():
-                    if (line.startswith("GLOBAL_GROQ_API_KEY=") or line.startswith("GROQ_API_KEY=")) and not detected_groq_key:
+                    if (
+                        line.startswith("GLOBAL_GROQ_API_KEY=") or line.startswith("GROQ_API_KEY=")
+                    ) and not detected_groq_key:
                         val = line.split("=", 1)[1].strip().strip('"').strip("'")
                         if val:
                             detected_groq_key = val
@@ -1053,7 +1060,9 @@ def handle_dev(command: list[str] | None = None) -> int:
                 return res.returncode
         else:
             print("⚙️ Creando entorno virtual .venv...")
-            res_venv = subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], cwd=plugin_root)
+            res_venv = subprocess.run(
+                [sys.executable, "-m", "venv", str(venv_dir)], cwd=plugin_root
+            )
             if res_venv.returncode != 0:
                 print("❌ Falló la creación de .venv", file=sys.stderr)
                 return res_venv.returncode
@@ -1113,13 +1122,19 @@ def handle_run(args: argparse.Namespace) -> int:
 
     if getattr(args, "down", False):
         print("🛑 Deteniendo entorno Docker Compose...")
-        return subprocess.run(["docker", "compose", "-f", str(compose_file), "down"], cwd=plugin_root).returncode
+        return subprocess.run(
+            ["docker", "compose", "-f", str(compose_file), "down"], cwd=plugin_root
+        ).returncode
 
     if getattr(args, "logs", False):
-        return subprocess.run(["docker", "compose", "-f", str(compose_file), "logs", "-f"], cwd=plugin_root).returncode
+        return subprocess.run(
+            ["docker", "compose", "-f", str(compose_file), "logs", "-f"], cwd=plugin_root
+        ).returncode
 
     if getattr(args, "status", False):
-        return subprocess.run(["docker", "compose", "-f", str(compose_file), "ps"], cwd=plugin_root).returncode
+        return subprocess.run(
+            ["docker", "compose", "-f", str(compose_file), "ps"], cwd=plugin_root
+        ).returncode
 
     cmd = ["docker", "compose", "-f", str(compose_file), "up", "-d"]
     if getattr(args, "build", False):
@@ -1147,8 +1162,17 @@ def handle_run(args: argparse.Namespace) -> int:
     # Limpieza preventiva de agentes demo huérfanos en imágenes anteriores del dashboard
     subprocess.run(
         [
-            "docker", "compose", "-f", str(compose_file), "exec", "-T", "jg_dashboard",
-            "php", "artisan", "tinker", "--execute=\\App\\Models\\Agent::where('agent_id', 'a0000000-0000-0000-0000-000000000002')->delete();"
+            "docker",
+            "compose",
+            "-f",
+            str(compose_file),
+            "exec",
+            "-T",
+            "jg_dashboard",
+            "php",
+            "artisan",
+            "tinker",
+            "--execute=\\App\\Models\\Agent::where('agent_id', 'a0000000-0000-0000-0000-000000000002')->delete();",
         ],
         cwd=plugin_root,
         capture_output=True,
@@ -1173,6 +1197,161 @@ def handle_run(args: argparse.Namespace) -> int:
     print("   • Ver logs en tiempo real:  jg run -l")
     print("   • Ver estado de servicios:  jg run -s")
     print("   • Detener el entorno:       jg run --down")
+    print("=" * 65)
+    return 0
+
+
+def handle_test(args: argparse.Namespace) -> int:
+    """Ejecuta la suite de pruebas del plugin usando pytest dentro del entorno virtual."""
+    pytest_args = getattr(args, "pytest_args", [])
+    if pytest_args and pytest_args[0] == "--":
+        pytest_args = pytest_args[1:]
+    cmd = ["pytest"] + pytest_args
+    return handle_dev(cmd)
+
+
+def handle_reload(args: argparse.Namespace) -> int:
+    """Recarga de forma inmediata los plugins de los agentes en ejecución."""
+    target = getattr(args, "target", "all") or "all"
+    target = target.lower()
+
+    agents_map = [
+        ("conversacional", "jg_agente_conversacional", 8001, "Agente Conversacional"),
+        ("devops", "jg_agente_devops", 8002, "Agente DevOps"),
+        ("datosgob", "jg_agente_datosgob", 8881, "Agente Datos Gob"),
+    ]
+
+    print("=" * 65)
+    print("🔌 Recargando plugins de agentes cognitivos...")
+    print("=" * 65)
+
+    reloaded_any = False
+    for a_key, a_container, a_port, a_name in agents_map:
+        if target not in ("all", a_key):
+            continue
+
+        reloaded_any = True
+        print(f"\n▶ [{a_name}] ({a_container})")
+
+        # Verificar si el contenedor está corriendo
+        res = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            capture_output=True,
+            text=True,
+        )
+        if a_container not in res.stdout.splitlines():
+            print(f"   ⚠️  Contenedor '{a_container}' no está en ejecución. Omitiendo.")
+            continue
+
+        print("   🔄 Reiniciando runtime...")
+        restart_res = subprocess.run(["docker", "restart", a_container], capture_output=True)
+        if restart_res.returncode != 0:
+            print(f"   ❌ Error al reiniciar contenedor '{a_container}'.")
+            continue
+
+        print(f"   ⏳ Verificando salud en http://localhost:{a_port}/health...")
+        healthy = False
+        start_t = time.time()
+        for _ in range(25):
+            try:
+                r = httpx.get(f"http://localhost:{a_port}/health", timeout=2.0)
+                if r.status_code == 200:
+                    healthy = True
+                    break
+            except Exception:
+                pass
+            time.sleep(1)
+
+        elapsed = round(time.time() - start_t, 1)
+        if not healthy:
+            print("   ❌ El agente no respondió saludable tras 25s.")
+            continue
+
+        print(f"   ✓ Agente saludable y operativo ({elapsed}s)")
+
+        try:
+            r = httpx.get(f"http://localhost:{a_port}/capabilities", timeout=3.0)
+            if r.status_code == 200:
+                data = r.json()
+                plugins = [
+                    p.get("name", "") + " (v" + p.get("version", "?") + ")"
+                    for p in data.get("plugins", [])
+                ]
+                tools = [
+                    t.get("name", "") + " [" + t.get("risk_level", "low") + "]"
+                    for t in data.get("tools", [])
+                ]
+                engines = [e.get("name", "") for e in data.get("engines", [])]
+
+                print(
+                    f"   📦 Plugins activos  ({data.get('plugins_count', 0)}): {', '.join(plugins) if plugins else 'Ninguno'}"
+                )
+                print(
+                    f"   🛠️  Herramientas    ({data.get('tools_count', 0)}): {', '.join(tools) if tools else 'Ninguna'}"
+                )
+                if engines:
+                    print(
+                        f"   🧠 Motores Cognit. ({data.get('engines_count', 0)}): {', '.join(engines)}"
+                    )
+        except Exception:
+            pass
+
+        print("   ✨ Plugins sincronizados con éxito.")
+
+    if not reloaded_any:
+        print(
+            f"❌ Objetivo desconocido: '{target}'. Opciones válidas: all, conversacional, devops, datosgob"
+        )
+        return 1
+
+    print("\n" + "=" * 65)
+    print("🎉 Recarga de plugins completada satisfactoriamente")
+    print("=" * 65)
+    return 0
+
+
+def handle_status(args: argparse.Namespace) -> int:
+    """Inspecciona la salud y capacidades de los servicios del ecosistema."""
+    services = [
+        ("Dashboard (Control Plane)", "http://localhost:8080/up", "web", 8080),
+        ("Dashboard Autónomo", "http://localhost:8880/up", "web", 8880),
+        ("Agente Conversacional", "http://localhost:8001/health", "agent", 8001),
+        ("Agente DevOps", "http://localhost:8002/health", "agent", 8002),
+        ("Agente Datos Gob", "http://localhost:8881/health", "agent", 8881),
+    ]
+
+    print("=" * 65)
+    print("🩺 Estado de Servicios y Runtimes (javiergalvez-ia)")
+    print("=" * 65)
+
+    for item in services:
+        name = item[0]
+        url = item[1]
+        stype = item[2]
+        port = item[3]
+
+        try:
+            r = httpx.get(url, timeout=2.0)
+            if r.status_code == 200:
+                print(f"  ✅ {name:<30} ONLINE  ({url})")
+                if stype == "agent":
+                    try:
+                        cr = httpx.get(f"http://localhost:{port}/capabilities", timeout=2.0)
+                        if cr.status_code == 200:
+                            cd = cr.json()
+                            p_cnt = cd.get("plugins_count", 0)
+                            t_cnt = cd.get("tools_count", 0)
+                            e_cnt = cd.get("engines_count", 0)
+                            print(
+                                f"     └─► Plugins: {p_cnt} | Herramientas: {t_cnt} | Motores: {e_cnt}"
+                            )
+                    except Exception:
+                        pass
+            else:
+                print(f"  ⚠️  {name:<30} HTTP {r.status_code} ({url})")
+        except Exception:
+            print(f"  ⚪ {name:<30} OFFLINE ({url})")
+
     print("=" * 65)
     return 0
 
@@ -1335,6 +1514,36 @@ def main(argv: list[str] | None = None) -> int:
         help="Puerto en el host para el Dashboard Web HITL (por defecto 8880).",
     )
 
+    # 6. Subcomando 'reload'
+    reload_parser = subparsers.add_parser(
+        "reload",
+        help="Recarga en caliente los plugins de los agentes en ejecución sin reiniciar el stack.",
+    )
+    reload_parser.add_argument(
+        "target",
+        nargs="?",
+        default="all",
+        choices=["all", "conversacional", "devops", "datosgob"],
+        help="Agente objetivo a recargar (por defecto: all).",
+    )
+
+    # 7. Subcomando 'status'
+    subparsers.add_parser(
+        "status",
+        help="Inspecciona el estado de salud y capacidades de los agentes y dashboard.",
+    )
+
+    # 8. Subcomando 'test'
+    test_parser = subparsers.add_parser(
+        "test",
+        help="Ejecuta la suite de pruebas unitarias del plugin usando pytest.",
+    )
+    test_parser.add_argument(
+        "pytest_args",
+        nargs=argparse.REMAINDER,
+        help="Argumentos adicionales a pasar a pytest.",
+    )
+
     args = parser.parse_args(argv)
 
     if not args.subcommand:
@@ -1353,7 +1562,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.subcommand == "run":
         return handle_run(args)
 
-    is_plugin_init = args.subcommand == "plugin" and getattr(args, "plugin_subcommand", None) == "init"
+    if args.subcommand == "reload" or (
+        args.subcommand == "plugin" and getattr(args, "plugin_subcommand", None) == "reload"
+    ):
+        return handle_reload(args)
+
+    if args.subcommand == "status":
+        return handle_status(args)
+
+    if args.subcommand == "test":
+        return handle_test(args)
+
+    is_plugin_init = (
+        args.subcommand == "plugin" and getattr(args, "plugin_subcommand", None) == "init"
+    )
     is_direct_init = args.subcommand == "init"
 
     if args.subcommand == "plugin" and not getattr(args, "plugin_subcommand", None):
@@ -1373,9 +1595,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"✨ Plugin inicializado con éxito en: {created_dir}")
             print("\nEstructura generada:")
             print(f"  📁 {created_dir.name}/")
-            print("  ├── install.sh                  <-- Script de aprovisionamiento (.venv + SDK local)")
+            print(
+                "  ├── install.sh                  <-- Script de aprovisionamiento (.venv + SDK local)"
+            )
             print("  ├── pyproject.toml")
-            print("  ├── docker-compose.yml          <-- Stack autónomo (Dashboard :8880, Agente :8881)")
+            print(
+                "  ├── docker-compose.yml          <-- Stack autónomo (Dashboard :8880, Agente :8881)"
+            )
             print("  ├── README.md")
             print("  ├── .gitignore")
             print("  ├── tests/test_plugin.py")
@@ -1383,8 +1609,12 @@ def main(argv: list[str] | None = None) -> int:
             print("\nPróximos pasos:")
             target_display = created_dir.name if args.path is None else created_dir
             print(f"  1. cd {target_display}")
-            print("  2. jg dev                       <-- Activa entorno virtual y dependencias (.venv)")
-            print("  3. jg run                       <-- Levanta stack autónomo en Docker (:8880 / :8881)")
+            print(
+                "  2. jg dev                       <-- Activa entorno virtual y dependencias (.venv)"
+            )
+            print(
+                "  3. jg run                       <-- Levanta stack autónomo en Docker (:8880 / :8881)"
+            )
             print("\n🔐 Credenciales de acceso al Dashboard (http://localhost:8880/admin):")
             print("  • Usuario:    admin@local.test")
             print("  • Contraseña: admin123456")

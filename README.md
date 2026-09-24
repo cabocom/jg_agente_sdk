@@ -1,6 +1,13 @@
 # jg-agente-sdk
 
-**SDK desacoplado y contratos públicos para el ecosistema de plugins y clientes de `jg_agente`.**
+[![PyPI version](https://img.shields.io/pypi/v/jg-agente-sdk.svg?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/jg-agente-sdk/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-7928CA.svg)](LICENSE)
+[![Type Checked: mypy](https://img.shields.io/badge/types-mypy-blue.svg)](https://mypy-lang.org/)
+[![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Architecture: Open Core](https://img.shields.io/badge/architecture-Open_Core-green.svg)](#1-visión-y-frontera-arquitectónica-open-core)
+
+> **SDK desacoplado, contratos canónicos y CLI de desarrollo para el ecosistema de agentes cognitivos javiergalvez-ia.**
 
 ---
 
@@ -20,53 +27,132 @@
 pip install jg-agente-sdk
 ```
 
-Para desarrollo local en este repositorio:
+Para desarrollo local o si has clonado el repositorio del SDK:
 ```bash
-pip install -e jg_agente_sdk
+cd jg_agente_sdk
+pip install -e .
+```
+
+> **¿Cómo se ejecuta el comando `jg`?**
+> Al instalar el SDK (`pip install jg-agente-sdk` o `pip install -e .`), `pip` registra automáticamente el binario ejecutable `jg` (y su alias `jg-sdk`) en tu `$PATH`. Puedes verificarlo de inmediato ejecutando:
+> ```bash
+> jg --help
+> ```
+
+---
+
+## 3. Herramienta de Línea de Comandos (`jg` CLI)
+
+El SDK proporciona la CLI `jg` diseñada bajo la filosofía *"menos es más"*: una interfaz minimalista, moderna y de alto impacto para desarrolladores de plugins y operadores de agentes.
+
+### Resumen de Comandos Principales
+
+| Comando | Propósito | Ejemplo |
+| :--- | :--- | :--- |
+| `jg init <nombre>` | Inicializa la estructura completa de un nuevo plugin listo para producción. | `jg init monitoring -t standard` |
+| `jg run` | Levanta el stack autónomo Docker Compose (Dashboard :8880, Agente :8881). | `jg run` / `jg run -l` / `jg run --down` |
+| `jg reload [target]`| Recarga en caliente los plugins de los agentes en ejecución sin reiniciar PostgreSQL ni Dashboard. | `jg reload` / `jg reload devops` |
+| `jg status` | Inspecciona el estado de salud en tiempo real de todos los agentes y el Dashboard. | `jg status` |
+| `jg test` | Ejecuta la suite de tests unitarios del plugin con Pytest en el entorno virtual. | `jg test` / `jg test -v` |
+| `jg dev` | Lanza una subshell o ejecuta herramientas (`ruff`, `mypy`) dentro del entorno `.venv`. | `jg dev` / `jg dev ruff check .` |
+
+---
+
+### 3.1 Inicialización de Plugins (`jg init`)
+
+Genera un plugin estructurado con schemas Pydantic, tests unitarios con `MockPluginRunner` y `docker-compose.yml` autónomo:
+
+```bash
+# Plugin estándar con tools + observer + compensación reversible
+jg init mi_herramienta
+
+# Plantillas disponibles:
+jg init network_monitor --template standard --author "Mi Organización"
+jg init simple_lookup   --template minimal
+jg init complex_ops     --template full --path ./custom_dir/
+```
+
+- `-t, --template [minimal|standard|full]`:
+  - `minimal`: Herramientas básicas de solo lectura (`ToolType.READ`).
+  - `standard` (por defecto): Herramientas tipadas, motor `ObserverEngine` y función de reversión (`rollback_func`).
+  - `full`: Suite completa con `ObserverEngine`, `PlannerEngine`, `VerifierEngine` y herramientas mutacionales.
+
+---
+
+### 3.2 Despliegue Local Autónomo en Docker (`jg run`)
+
+Permite probar y validar el plugin dentro de un entorno Docker idéntico al de producción:
+
+```bash
+# Iniciar stack Docker Compose (Dashboard web en :8880, Agente en :8881)
+jg run
+
+# Ver logs en tiempo real
+jg run -l
+
+# Ver estado de los contenedores
+jg run -s
+
+# Detener el entorno Docker
+jg run --down
 ```
 
 ---
 
-## 3. CLI de Scaffolding: Inicialización Rápida de Plugins (`jg-sdk`)
+### 3.3 Recarga en Caliente (`jg reload`)
 
-El SDK incluye una herramienta de línea de comandos para generar proyectos de plugins listos para producción con un solo comando:
+Cuando realizas cambios en el código de tu plugin, no necesitas reiniciar las bases de datos ni el Dashboard. Ejecuta:
 
 ```bash
-# Inicializar un nuevo plugin con la plantilla estándar (tools + observer + rollback)
-jg-sdk plugin init mi_herramienta
+# Recargar todos los agentes activos
+jg reload
 
-# Opciones avanzadas y plantillas:
-jg-sdk plugin init network_monitor --template standard --author "Mi Organización"
-jg-sdk plugin init simple_lookup   --template minimal
-jg-sdk plugin init complex_ops     --template full --path ./custom_dir/
-# Nota: 'jg-sdk init' sigue disponible como alias directo rápido.
+# Recargar un agente específico
+jg reload conversacional
+jg reload devops
+jg reload datosgob
 ```
 
-### Opciones Disponibles (`jg-sdk plugin init --help`)
-- `-t, --template [minimal|standard|full]`:
-  - `minimal`: Plugin básico con una sola herramienta de lectura (`ToolType.READ`).
-  - `standard` (por defecto): Herramientas con schemas Pydantic, motor `ObserverEngine` y compensación reversible (`rollback_func`).
-  - `full`: Suite completa con `ObserverEngine`, `PlannerEngine`, `VerifierEngine` y herramientas mutacionales de alto riesgo.
-- `-p, --path <dir>`: Ruta de destino (por defecto `./jg_plugin_<nombre>`).
-- `-a, --author <nombre>`: Autor del plugin en metadatos.
-- `-d, --desc, --description <desc>`: Descripción breve del propósito del plugin.
-- `-f, --force`: Sobrescribe archivos si el directorio destino ya existe.
+El comando reinicia el proceso del agente en ~2 segundos, espera a que responda en `/health` y consulta `/capabilities` para confirmar que las nuevas herramientas han sido registradas.
 
+---
 
-Cada proyecto generado incluye `pyproject.toml` con el entry-point `[project.entry-points."jg_agente.plugins"]`, `.gitignore`, `README.md`, módulos estructurados y tests funcionales con `MockPluginRunner`.
+### 3.4 Chequeo de Salud y Diagnóstico (`jg status`)
+
+Muestra una panorámica instantánea del estado de los servicios y las capacidades activas:
+
+```bash
+jg status
+```
+
+Salida esperada:
+```text
+=================================================================
+🩺 Estado de Servicios y Runtimes (javiergalvez-ia)
+=================================================================
+  ✅ Dashboard (Control Plane)      ONLINE  (http://localhost:8080/up)
+  ✅ Dashboard Autónomo             ONLINE  (http://localhost:8880/up)
+  ✅ Agente Conversacional          ONLINE  (http://localhost:8001/health)
+     └─► Plugins: 1 | Herramientas: 2 | Motores: 0
+  ✅ Agente DevOps                  ONLINE  (http://localhost:8002/health)
+     └─► Plugins: 1 | Herramientas: 4 | Motores: 3
+  ✅ Agente Datos Gob               ONLINE  (http://localhost:8881/health)
+     └─► Plugins: 1 | Herramientas: 2 | Motores: 0
+=================================================================
+```
 
 ---
 
 ## 4. Guía de Desarrollo de Plugins
 
-### 3.1 Anatomía de un Plugin
+### 4.1 Anatomía de un Plugin
 
 Para crear un plugin compatible, crea una clase que herede de `BasePlugin` e implemente los tres métodos obligatorios:
 1. `get_plugin_metadata()`: Devuelve una instancia inmutable de `PluginMetadata`.
 2. `register_tools()`: Devuelve la lista de instancias `AgentTool`.
 3. `register_engines()`: Devuelve un diccionario con los motores de dominio (`ObserverEngine`, `PlannerEngine`, `VerifierEngine` o `BaseEngine`).
 
-### 3.2 Ejemplo de Implementación
+### 4.2 Ejemplo de Implementación
 
 ```python
 from pydantic import BaseModel, Field
@@ -81,10 +167,12 @@ from jg_sdk import (
     ObserverEngine,
 )
 
+
 # 1. Esquema de argumentos con validación estricta de Pydantic
 class PingArgs(BaseModel):
     host: str = Field(..., description="Dirección IP o FQDN a comprobar")
     count: int = Field(default=3, ge=1, le=10, description="Número de paquetes")
+
 
 # 2. Función ejecutable de la herramienta
 def execute_ping(host: str, count: int = 3) -> ToolResult:
@@ -95,11 +183,13 @@ def execute_ping(host: str, count: int = 3) -> ToolResult:
         metadata={"host": host, "count": count},
     )
 
+
 # 3. Motor de dominio cognitivo (Opcional)
 class NetworkObserver(ObserverEngine):
     @property
     def name(self) -> str:
         return "network_observer"
+
 
 # 4. Clase principal del Plugin
 class NetworkPlugin(BasePlugin):
@@ -156,6 +246,7 @@ def deploy_service(service_name: str) -> ToolResult:
         rollback_context={"service_id": "123", "previous_version": "v1"},
     )
 
+
 def rollback_deploy(rollback_context: dict) -> ToolResult:
     service_id = rollback_context["service_id"]
     # Lógica para revertir a previous_version
@@ -163,6 +254,7 @@ def rollback_deploy(rollback_context: dict) -> ToolResult:
         success=True,
         output=f"Servicio {service_id} revertido exitosamente a estado anterior.",
     )
+
 
 deploy_tool = AgentTool(
     name="deploy_service",
@@ -208,6 +300,7 @@ import pytest
 from jg_sdk.testing import MockPluginRunner
 from jg_plugin_network.plugin import NetworkPlugin, PingArgs
 
+
 @pytest.mark.asyncio
 async def test_network_plugin():
     plugin = NetworkPlugin()
@@ -242,6 +335,7 @@ $$\text{canonical\_string} = \text{METHOD} + \text{"\\n"} + \text{PATH} + \text{
 import asyncio
 from jg_sdk import JGAgentClient, UserContext
 
+
 async def main():
     async with JGAgentClient(
         base_url="http://localhost:8000",
@@ -261,6 +355,7 @@ async def main():
 
         print(f"Estado de la ejecución: {output.status}")
         print(f"Respuesta del agente: {output.response}")
+
 
 asyncio.run(main())
 ```

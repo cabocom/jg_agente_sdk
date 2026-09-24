@@ -103,7 +103,9 @@ class AgentTool(BaseModel):
 
     name: str = Field(..., min_length=1, description="Identificador único de la herramienta.")
     description: str = Field(
-        ..., min_length=1, description="Descripción funcional clara para el function calling del LLM."
+        ...,
+        min_length=1,
+        description="Descripción funcional clara para el function calling del LLM.",
     )
     category: str = Field(
         default="general", min_length=1, description="Categoría lógica de la herramienta."
@@ -275,7 +277,9 @@ class AgentTool(BaseModel):
             elif isinstance(res, bool):
                 return ToolResult(
                     success=res,
-                    output="Compensación completada exitosamente." if res else "Compensación fallida.",
+                    output="Compensación completada exitosamente."
+                    if res
+                    else "Compensación fallida.",
                     duration_ms=round(duration, 2),
                     metadata={"rollback_executed": True},
                 )

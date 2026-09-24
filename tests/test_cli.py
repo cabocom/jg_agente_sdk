@@ -36,6 +36,7 @@ def test_generate_standard_scaffold(tmp_path: Path):
     assert (target_dir / "install.sh").is_file()
     # Comprobar permisos de ejecución en install.sh
     import os
+
     assert os.access(target_dir / "install.sh", os.X_OK)
 
     pkg_dir = target_dir / "jg_plugin_observability"
@@ -58,8 +59,8 @@ def test_generate_standard_scaffold(tmp_path: Path):
     assert 'tags=["observability"]' in plugin_text
 
     tools_text = (pkg_dir / "tools.py").read_text(encoding="utf-8")
-    assert "name=\"observability_inspect\"" in tools_text
-    assert "name=\"observability_action\"" in tools_text
+    assert 'name="observability_inspect"' in tools_text
+    assert 'name="observability_action"' in tools_text
     assert "rollback_action" in tools_text
 
 
@@ -129,17 +130,19 @@ def test_main_cli_execution(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     assert (dest1 / "pyproject.toml").is_file()
 
     dest2 = tmp_path / "cli_generated_plugin_2"
-    ret2 = main([
-        "plugin",
-        "init",
-        "datosgob",
-        "--author",
-        "Javier Gálvez",
-        "--desc",
-        "Buscador de datos abiertos",
-        "-p",
-        str(dest2),
-    ])
+    ret2 = main(
+        [
+            "plugin",
+            "init",
+            "datosgob",
+            "--author",
+            "Javier Gálvez",
+            "--desc",
+            "Buscador de datos abiertos",
+            "-p",
+            str(dest2),
+        ]
+    )
     assert ret2 == 0
     assert (dest2 / "pyproject.toml").is_file()
     assert (dest2 / "install.sh").is_file()
@@ -179,7 +182,9 @@ def test_main_cli_dev_and_run_help(capsys: pytest.CaptureFixture[str]):
     assert "run" in captured_run.out
 
 
-def test_cli_run_without_compose(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+def test_cli_run_without_compose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Verifica que run informe error si no existe docker-compose.yml."""
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()
@@ -191,3 +196,19 @@ def test_cli_run_without_compose(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert "No se encontró 'docker-compose.yml'" in captured.err
 
 
+def test_main_cli_new_commands_help(capsys: pytest.CaptureFixture[str]):
+    """Prueba que los subcomandos reload, status y test respondan a --help."""
+    for cmd in ["reload", "status", "test"]:
+        with pytest.raises(SystemExit) as exc:
+            main([cmd, "--help"])
+        assert exc.value.code == 0
+        captured = capsys.readouterr()
+        assert cmd in captured.out
+
+
+def test_cli_status_execution(capsys: pytest.CaptureFixture[str]):
+    """Verifica que status se ejecute sin excepciones capturando estado de red."""
+    ret = main(["status"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "Estado de Servicios y Runtimes" in captured.out

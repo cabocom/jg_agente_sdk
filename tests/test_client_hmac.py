@@ -75,7 +75,9 @@ class TestHMACCryptography(unittest.TestCase):
         canonical_now = compute_canonical_string(method, path, current_time, body)
         sig_now = compute_hmac_signature(secret, canonical_now)
         self.assertTrue(
-            verify_request_signature(secret, method, path, current_time, body, sig_now, max_skew_seconds=300)
+            verify_request_signature(
+                secret, method, path, current_time, body, sig_now, max_skew_seconds=300
+            )
         )
 
         # 2. Petición dentro de la ventana de tolerancia (e.g. 150 segundos antes)
@@ -83,7 +85,9 @@ class TestHMACCryptography(unittest.TestCase):
         canonical_past = compute_canonical_string(method, path, ts_valid_past, body)
         sig_past = compute_hmac_signature(secret, canonical_past)
         self.assertTrue(
-            verify_request_signature(secret, method, path, ts_valid_past, body, sig_past, max_skew_seconds=300)
+            verify_request_signature(
+                secret, method, path, ts_valid_past, body, sig_past, max_skew_seconds=300
+            )
         )
 
         # 3. Petición fuera de la ventana de tolerancia (> 300 segundos, ataque de repetición)
@@ -91,7 +95,9 @@ class TestHMACCryptography(unittest.TestCase):
         canonical_exp = compute_canonical_string(method, path, ts_expired, body)
         sig_exp = compute_hmac_signature(secret, canonical_exp)
         self.assertFalse(
-            verify_request_signature(secret, method, path, ts_expired, body, sig_exp, max_skew_seconds=300)
+            verify_request_signature(
+                secret, method, path, ts_expired, body, sig_exp, max_skew_seconds=300
+            )
         )
 
         # 4. Timestamp malformado

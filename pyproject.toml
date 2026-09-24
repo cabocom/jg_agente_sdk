@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "SDK desacoplado y contratos públicos para el ecosistema de plugins y clientes de jg_agente"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "AGPL-3.0-or-later" }
+license = "AGPL-3.0-or-later"
 authors = [{ name = "Javier Gálvez" }]
 keywords = ["agents", "ai", "plugins", "sdk", "contracts", "hmac"]
 classifiers = [
@@ -19,6 +19,12 @@ dependencies = [
     "pydantic>=2.5.0",
     "httpx>=0.25.0",
 ]
+
+[project.urls]
+Homepage = "https://javiergalvez.com"
+Documentation = "https://gitlab.com/javiergalvez-ia/jg_agente_sdk"
+Repository = "https://gitlab.com/javiergalvez-ia/jg_agente_sdk.git"
+"Issue Tracker" = "https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -43,6 +49,9 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 include = ["jg_sdk*"]
 exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+jg_sdk = ["py.typed"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
