@@ -60,6 +60,7 @@ build:package:
   stage: build
   rules:
     - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   before_script:
     - python -m pip install --upgrade pip
@@ -82,6 +83,7 @@ publish:pypi:
     - build:package
   rules:
     - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   before_script:
     - python -m pip install --upgrade pip
@@ -93,5 +95,5 @@ publish:pypi:
         exit 1
       fi
     - echo "🚀 Publicando jg-agente-sdk en PyPI oficial (pypi.org)..."
-    - TWINE_USERNAME="__token__" TWINE_PASSWORD="$PYPI_TOKEN" python -m twine upload dist/*
+    - TWINE_USERNAME="__token__" TWINE_PASSWORD="$PYPI_TOKEN" python -m twine upload --skip-existing dist/*
     - echo "✅ ¡Paquete publicado exitosamente en PyPI! Instalable con: pip install jg-agente-sdk"
