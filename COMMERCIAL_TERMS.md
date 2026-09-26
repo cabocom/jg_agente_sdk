@@ -12,7 +12,7 @@ El kit de desarrollo **`jg_agente_sdk`** proporciona los contratos canónicos, m
 Se distribuye bajo un esquema formal de **Doble Licenciamiento (Dual Licensing)**:
 
 1. **Licencia de Código Abierto (AGPLv3):** Destinada a la comunidad de software libre, investigación y desarrollo de plugins comunitarios que deseen compartir su código bajo la misma licencia recíproca ([LICENSE](LICENSE)).
-2. **Licencia Comercial Enterprise (200 € / mes cada 3 agentes):** Diseñada para organizaciones y desarrolladores de software que construyen herramientas, plugins y motores cognitivos propietarios que **no deben ser liberados al público**.
+2. **Licencia Comercial Enterprise (1 € / mes por agente):** Diseñada para organizaciones y desarrolladores de software que construyen herramientas, plugins y motores cognitivos propietarios que **no deben ser liberados al público**.
 
 ---
 
@@ -33,14 +33,10 @@ La licencia AGPLv3 exige que cualquier software derivado o vinculado que preste 
 Para empresas que integran APIs privadas, secretos comerciales o lógica propietaria en sus plugins de agentes sin liberar código fuente:
 
 ### 3.1 Esquema de Tarifas
-- **Cuota de Suscripción Base:** **200 € / mes** (+ IVA aplicable) **por cada bloque de hasta 3 agentes**.
-- **Sin rappel por volumen:** La tarificación es estrictamente lineal y acumulativa por número de agentes en ejecución:
-  - De 1 a 3 agentes: **200 € / mes**
-  - De 4 a 6 agentes: **400 € / mes**
-  - De 7 a 9 agentes: **600 € / mes**
-  - *(Tarifa plana lineal sin descuentos por tramos ni rappel).*
+- **Tarifa Única Universal:** **1 € / mes** (+ IVA aplicable) **por cada agente en ejecución**, sin importe mínimo ni límite superior.
+- **Sin rappel y sin límite:** La tarificación es estrictamente proporcional y lineal a razón de 1 €/mes por cada agente activo en ejecución (ej. 1 agente = 1 €/mes, 10 agentes = 10 €/mes, 500 agentes = 500 €/mes), sin descuentos por tramos, sin rappel y sin empaquetado en bloques mínimos.
 - **Periodicidad:** Facturación mensual o anual recurrente.
-- **Despliegues de Gran Volumen:** Si tu organización requiere un volumen superior de agentes o una licencia corporativa global (*unlimited instances* / OEM), contacta directamente a través de **[https://javiergalvez.com](https://javiergalvez.com)**.
+- **Casos Singulares y Acuerdos Especiales:** Si tu organización requiere un acuerdo corporativo muy particular (e.g. acuerdos OEM a medida, integración en appliances de hardware cerrados o condiciones específicas de contratación pública), puedes contactar directamente a través de **[https://javiergalvez.com](https://javiergalvez.com)**.
 
 ### 3.2 Derechos y Ventajas Otorgados
 1. **Plugins Propietarios Cerrados:** Derecho a desarrollar, empaquetar y distribuir plugins comerciales sin publicar su código fuente ni someterlos a copyleft.

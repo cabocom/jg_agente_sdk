@@ -372,8 +372,8 @@ Este SDK se distribuye bajo un esquema de **Doble Licenciamiento**:
 
 - **Licencia de Código Abierto:** [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE) - Copyright (C) 2026 Javier Gálvez.
 - **Licencia Comercial Enterprise:** Exención de copyleft para desarrollo corporativo y distribución de plugins propietarios cerrados:
-  - **Tarifa:** **200 € / mes** por cada bloque de hasta 3 agentes (sin rappel por volumen).
-  - **Mayor volumen:** Si necesita mayor volumen o licenciamiento corporativo global, contacte a través de **[https://javiergalvez.com](https://javiergalvez.com)**.
+  - **Tarifa:** **1 € / mes** por agente (tarifa plana lineal, sin rappel y sin límite de agentes).
+  - **Casos particulares:** Contacte directamente con Javier Gálvez únicamente para casos o despliegues muy particulares a través de **[https://javiergalvez.com](https://javiergalvez.com)**.
 
 Para más detalles, consulta [COMMERCIAL_TERMS.md](COMMERCIAL_TERMS.md).
 
