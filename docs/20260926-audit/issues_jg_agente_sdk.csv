@@ -1,0 +1,180 @@
+"title","description"
+"[SDK-SEC-01] ALTO: .env generado inyecta clave API real del desarrollador","## Descripción
+
+El comando `jg plugin init` detecta `GROQ_API_KEY` del entorno del sistema y la inyecta directamente en el archivo `.env` generado para el nuevo plugin.
+
+## Ficheros afectados
+
+- `jg_sdk/cli.py:756-775` — detección de clave del entorno
+- `jg_sdk/cli.py:958-966` — escritura de la clave en `.env`
+
+## Flujo de explotación
+
+1. Desarrollador tiene `GROQ_API_KEY=sk-real...` en su entorno.
+2. Ejecuta `jg plugin init mi_plugin`.
+3. El scaffold genera `mi_plugin/.env` con la clave real embebida.
+4. El desarrollador hace `git push` sin revisar el contenido.
+5. La clave API queda expuesta en el repositorio.
+
+El `.gitignore` generado excluye `.env` pero no es defensa suficiente (git add -f, clientes GUI que ignoran .gitignore, etc.).
+
+## Corrección propuesta
+
+En `generate_plugin_scaffold`, cambiar la generación del `.env`:
+
+```python
+# ANTES (inseguro):
+env_content = f'GROQ_API_KEY={detected_groq_key}'
+
+# DESPUÉS (seguro):
+env_content = 'GROQ_API_KEY=  # Configura tu clave aquí'
+```
+
+Mostrar en consola un aviso si se detecta una clave en el entorno.
+
+## Referencias
+
+- Auditoría: `jg_agente_sdk/docs/audit/AUDIT.md` — Issue SDK-SEC-01
+- Relacionado con: SDK-SEC-04
+
+/label ~seguridad ~alto ~vulnerabilidad
+/milestone ""Auditoría v1.0"""
+"[SDK-SEC-04] ALTO: Escalada de directorios en búsqueda de .env filtra claves del monorepo","## Descripción
+
+El scaffold sube en el árbol de directorios buscando un `.env` con claves GROQ. Si el desarrollador ejecuta `jg plugin init` desde dentro del monorepo `javiergalvez-ia/`, el scaffold lee el `.env` raíz (con claves reales) y las inyecta en el plugin generado.
+
+## Fichero afectado
+
+- `jg_sdk/cli.py:760`
+
+```python
+for env_dir in [out_dir, *out_dir.parents]:
+    cand_env = env_dir / '.env'
+    if cand_env.is_file():
+        # extrae GROQ_API_KEY del .env encontrado
+```
+
+## Escenario concreto
+
+```
+Desarrollador en: /Users/dev/mi-empresa/jg_agente_sdk/
+Ejecuta: jg plugin init nuevo_plugin
+El scaffold busca .env en directorios padre hasta encontrar:
+  /Users/dev/mi-empresa/.env  ← contiene GROQ_API_KEY real
+  → la copia a nuevo_plugin/.env
+```
+
+## Corrección propuesta
+
+Opciones (elegir una):
+1. **Eliminar la búsqueda en directorios padre** — leer solo de `os.environ`.
+2. **Opt-in con confirmación**: preguntar al usuario antes de inyectar.
+3. **Detener en el directorio del plugin** (`out_dir` únicamente).
+
+## Referencias
+
+- Auditoría: `jg_agente_sdk/docs/audit/AUDIT.md` — Issue SDK-SEC-04
+- Misma raíz que: SDK-SEC-01
+
+/label ~seguridad ~alto ~vulnerabilidad
+/milestone ""Auditoría v1.0"""
+"[SDK-SEC-02] MEDIO: docker-compose.yml generado con credenciales inseguras sin advertencia","## Descripción
+
+El `docker-compose.yml` generado incluye valores de fallback hardcodeados y públicamente conocidos. Si el desarrollador despliega en producción sin configurar el `.env`, el sistema arranca con credenciales comprometidas.
+
+## Fichero afectado
+
+- `jg_sdk/cli.py:824-839`
+
+```yaml
+APP_KEY: ""${APP_KEY:-base64:u/pQ9k8...}""
+JG_AGENTE_SECRET: ""${JG_AGENTE_SECRET:-secret_dev_token_12345}""
+ADMIN_DEFAULT_PASSWORD: ""${ADMIN_DEFAULT_PASSWORD:-admin123456}""
+```
+
+## Corrección propuesta
+
+Añadir banner de advertencia al ejecutar `jg run`:
+
+```
+⚠️  Stack iniciado con credenciales de DESARROLLO.
+    Configura el .env antes de desplegar en producción.
+```
+
+## Referencias
+
+- Auditoría: `jg_agente_sdk/docs/audit/AUDIT.md` — Issue SDK-SEC-02
+
+/label ~seguridad ~medio ~deuda-tecnica
+/milestone ""Auditoría v1.0"""
+"[SDK-CLI-01] MEDIO: `jg dev CMD` ejecuta comandos arbitrarios sin documentación explícita","## Descripción
+
+El subcomando `jg dev COMANDO` pasa el argumento directamente a `subprocess.run` sin restricciones. Comportamiento intencional, pero no documentado en el `--help`.
+
+## Fichero afectado
+
+- `jg_sdk/cli.py:1083`
+
+```python
+res = subprocess.run(cmd, env=new_env, cwd=plugin_root)
+# cmd = args.command — entrada directa del usuario
+```
+
+## Corrección propuesta
+
+Actualizar el help del subcomando `dev`:
+
+```python
+parser_dev.description = (
+    ""Ejecuta un comando arbitrario en el entorno virtual del plugin. ""
+    ""Ejemplos: jg dev pytest, jg dev ruff check .""
+)
+```
+
+## Referencias
+
+- Auditoría: `jg_agente_sdk/docs/audit/AUDIT.md` — Issue SDK-CLI-01
+
+/label ~documentacion ~medio ~deuda-tecnica
+/milestone ""Auditoría v1.0"""
+"[SDK-SEC-03] BAJO: `jg run` ejecuta borrado silencioso en BD vía artisan tinker","## Descripción
+
+La función `handle_run` ejecuta un `php artisan tinker` que borra un registro de la BD en cada inicio del stack. La operación es silenciosa (`capture_output=True`) y no está documentada.
+
+## Fichero afectado
+
+- `jg_sdk/cli.py:1163-1179`
+
+La cadena ejecutada es estática (no hay input de usuario). No es inyección.
+
+## Corrección propuesta
+
+Documentar en comentarios del código y en el README del scaffold qué hace internamente `jg run` (limpieza de agentes duplicados de ejecuciones anteriores).
+
+## Referencias
+
+- Auditoría: `jg_agente_sdk/docs/audit/AUDIT.md` — Issue SDK-SEC-03
+
+/label ~operaciones ~bajo ~riesgo-operativo
+/milestone ""Auditoría v1.0"""
+"[SDK-TEST-01] INFO: No hay test que verifique que .env generado no contiene claves API reales","## Descripción
+
+No existe test de regresión para SDK-SEC-01. Una vez corregido el scaffold, añadir un test que verifique que el `.env` generado no contiene claves API reales.
+
+## Test propuesto
+
+```python
+def test_scaffold_env_does_not_inject_real_api_key(tmp_path, monkeypatch):
+    monkeypatch.setenv(""GROQ_API_KEY"", ""sk-test-real-key-12345"")
+    # ejecutar scaffold en tmp_path
+    env_content = (tmp_path / ""my_plugin"" / "".env"").read_text()
+    assert ""sk-test-real-key-12345"" not in env_content
+```
+
+## Referencias
+
+- Auditoría: `jg_agente_sdk/docs/audit/AUDIT.md` — Issue SDK-TEST-01
+- Relacionado con: SDK-SEC-01
+
+/label ~tests ~info ~deuda-tecnica
+/milestone ""Auditoría v1.0"""
