@@ -745,6 +745,7 @@ El plugin incluye una suite Docker Compose completa (`docker-compose.yml`) para 
 - **Execution Plane:** Runtime `jg_agente` con tu plugin en `http://localhost:8881`.
 - **Script de Arranque (`docker/entrypoint.sh`):** Al levantar el stack, el agente ejecuta automáticamente `alembic upgrade head` para garantizar la creación y consistencia de las tablas troncales (`core_executions`, `core_audit_records`) en PostgreSQL antes de inicializar el servidor FastAPI.
 - **Configuración de LLM:** Configura tu `GROQ_API_KEY` en el archivo `.env` para habilitar el razonamiento cognitivo.
+- **Ciclo de Vida de `jg run`:** Al iniciar el stack, `jg run` realiza una limpieza preventiva en la base de datos del Dashboard de agentes demo huérfanos con ID fijo (`a0000000-0000-0000-0000-000000000002`), asegurando que no existan duplicidades con el nuevo agente del plugin.
 
 Para iniciar el entorno:
 ```bash
@@ -1159,7 +1160,11 @@ def handle_run(args: argparse.Namespace) -> int:
     if res.returncode != 0:
         return res.returncode
 
-    # Limpieza preventiva de agentes demo huérfanos en imágenes anteriores del dashboard
+    # Limpieza de agentes demo huérfanos en el Dashboard (SDK-SEC-03):
+    # Al iniciar el stack, se ejecuta una operación determinista y estática (sin input de usuario)
+    # mediante 'artisan tinker' para eliminar el agente demo legacy con ID fijo
+    # ('a0000000-0000-0000-0000-000000000002') proveniente de versiones iniciales de la imagen
+    # base del Dashboard. Esto previene entradas duplicadas o conflictos con el agente actual.
     subprocess.run(
         [
             "docker",

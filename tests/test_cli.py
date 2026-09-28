@@ -330,3 +330,17 @@ def test_cli_dev_help_documents_arbitrary_commands(capsys: pytest.CaptureFixture
     assert "Ejecuta un comando arbitrario en el entorno virtual" in captured.out
     assert "jg dev pytest" in captured.out
     assert "jg dev ruff check ." in captured.out
+
+
+def test_scaffold_readme_documents_run_lifecycle_cleanup(tmp_path: Path):
+    """Verifica SDK-SEC-03: El README generado documenta el ciclo de vida de jg run y la limpieza de agentes."""
+    target_dir = tmp_path / "jg_plugin_sec03"
+    generate_plugin_scaffold(name="sec03", target_dir=target_dir)
+
+    readme_path = target_dir / "README.md"
+    assert readme_path.is_file()
+    readme_text = readme_path.read_text(encoding="utf-8")
+
+    assert "Ciclo de Vida de `jg run`" in readme_text
+    assert "limpieza preventiva en la base de datos del Dashboard" in readme_text
+    assert "a0000000-0000-0000-0000-000000000002" in readme_text
