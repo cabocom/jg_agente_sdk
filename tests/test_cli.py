@@ -319,3 +319,14 @@ def test_cli_run_prints_security_warning_banner(
     captured = capsys.readouterr()
     assert "Stack iniciado con credenciales de DESARROLLO" in captured.out
     assert "Configura el .env antes de desplegar en producción" in captured.out
+
+
+def test_cli_dev_help_documents_arbitrary_commands(capsys: pytest.CaptureFixture[str]):
+    """Verifica SDK-CLI-01: El subcomando dev documenta explícitamente la ejecución de comandos arbitrarios."""
+    with pytest.raises(SystemExit) as exc:
+        main(["dev", "--help"])
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert "Ejecuta un comando arbitrario en el entorno virtual" in captured.out
+    assert "jg dev pytest" in captured.out
+    assert "jg dev ruff check ." in captured.out

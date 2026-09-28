@@ -1036,7 +1036,11 @@ def handle_install() -> int:
 
 
 def handle_dev(command: list[str] | None = None) -> int:
-    """Habilita y activa el entorno virtual de desarrollo (.venv) para el plugin."""
+    """Habilita el entorno virtual (.venv) o ejecuta un comando arbitrario dentro de él.
+
+    Nota de diseño (SDK-CLI-01): Si se proporciona `command`, se ejecuta directamente
+    dentro del entorno del plugin (ej. `pytest`, `ruff check .`) sin filtrado adicional.
+    """
     plugin_root = _find_plugin_root()
     venv_dir = plugin_root / ".venv"
     venv_python = venv_dir / "bin" / "python"
@@ -1446,6 +1450,15 @@ def main(argv: list[str] | None = None) -> int:
     dev_parser = subparsers.add_parser(
         "dev",
         help="Habilita el entorno virtual (.venv) o ejecuta comandos dentro de él.",
+        description=(
+            "Ejecuta un comando arbitrario en el entorno virtual del plugin (.venv).\n"
+            "Si no se especifica ningún comando, inicia una subshell interactiva dentro del entorno.\n\n"
+            "Ejemplos:\n"
+            "  jg dev pytest\n"
+            "  jg dev ruff check .\n"
+            "  jg dev python -m mi_modulo"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     dev_parser.add_argument(
         "command",
