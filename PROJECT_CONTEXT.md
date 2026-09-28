@@ -8,9 +8,9 @@
 - **Fuente Única de Verdad (SSOT):** Define todos los contratos públicos canónicos del ecosistema (`AgentTool`, `ToolResult`, `RiskLevel`, `ToolType`, `ExecutionStatus`, `BasePlugin`, `BaseEngine`, `PluginMetadata`, `AgentInput`, `AgentOutput`).
 - **Desacoplamiento Absoluto:** Cero dependencias de frameworks pesados (sin LangChain, LangGraph, FastAPI, SQLAlchemy ni bases de datos).
 - **Tipado Estricto (PEP 561):** Incluye marcador `py.typed` para autocompletado y validación estática transparente con MyPy en cualquier consumidor.
-- **Herramienta de Línea de Comandos (`jg` / `jg-sdk`):** CLI integrado para invocación interactiva de agentes, ping de salud, inspección de capacidades, soporte de parámetros descriptivos y scaffolding seguro (`jg plugin init`) blindado contra filtraciones de secretos en `.env` (SDK-SEC-01 / SDK-SEC-04).
+- **Herramienta de Línea de Comandos (`jg` / `jg-sdk`):** CLI integrado para invocación interactiva de agentes, ping de salud, inspección de capacidades, soporte de parámetros descriptivos, scaffolding seguro (`jg plugin init`) y alertas de credenciales de desarrollo en tiempo de ejecución (`jg run`, SDK-SEC-01, SDK-SEC-02, SDK-SEC-04).
 - **Cliente HTTP con Firma HMAC-SHA256:** `AgentClient` implementa la especificación criptográfica de firma simétrica canónica y prevención de replay attacks requerida por `jg_agente`.
-- **Suite de Calidad Automatizada:** Script de validación `scripts/check.sh` con Ruff (linter y formateo) y Pytest pasando al 100% (42 tests unitarios).
+- **Suite de Calidad Automatizada:** Script de validación `scripts/check.sh` con Ruff (linter y formateo) y Pytest pasando al 100% (44 tests unitarios).
 
 ---
 
@@ -50,7 +50,7 @@ jg_agente_sdk/
 │   ├── contracts.py        # Contratos canónicos: AgentTool, ToolResult, BasePlugin, RiskLevel
 │   ├── models.py           # Modelos de I/O: AgentInput, AgentOutput, UserContext, ExecutionStatus
 │   └── py.typed            # Marcador PEP 561 de tipado estático
-├── tests/                  # Suite de 42 tests unitarios (CLI, HMAC, contratos, plugins, seguridad)
+├── tests/                  # Suite de 44 tests unitarios (CLI, HMAC, contratos, plugins, seguridad)
 ├── docs/                   # Documentación técnica, trazabilidad y resolución de issues
 │   └── issues/             # Issues documentados con análisis, walkthrough y cierre
 ├── scripts/

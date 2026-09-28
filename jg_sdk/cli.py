@@ -807,6 +807,9 @@ services:
       jg_dashboard_postgres:
         condition: service_healthy
     environment:
+      # ADVERTENCIA DE SEGURIDAD (SDK-SEC-02):
+      # Los valores por defecto a continuación son ÚNICAMENTE para desarrollo local aislado.
+      # Para entornos de producción o staging, configure contraseñas seguras en su archivo .env.
       APP_NAME: "jG Dashboard - {class_prefix}"
       APP_ENV: ${{APP_ENV:-local}}
       APP_KEY: "${{APP_KEY:-base64:u/pQ9k8q3N0vQzW3mY8l4xJ1t5R6w7y8z9a0b1c2d3E=}}"
@@ -1144,6 +1147,10 @@ def handle_run(args: argparse.Namespace) -> int:
     effective_dashboard_port = env.get("DASHBOARD_PORT", "8880")
 
     print(f"🐳 Iniciando stack Docker Compose autónomo ({compose_file.name})...")
+    print(
+        "⚠️  Stack iniciado con credenciales de DESARROLLO. "
+        "Configura el .env antes de desplegar en producción."
+    )
     res = subprocess.run(cmd, cwd=plugin_root, env=env)
     if res.returncode != 0:
         return res.returncode
@@ -1171,6 +1178,10 @@ def handle_run(args: argparse.Namespace) -> int:
     print("\n" + "=" * 65)
     print("✨ Stack autónomo de jg_agente iniciado correctamente")
     print("=" * 65)
+    print("⚠️  AVISO DE SEGURIDAD (SDK-SEC-02):")
+    print("   Stack iniciado con credenciales de DESARROLLO por defecto.")
+    print("   Configura el .env antes de desplegar en producción.")
+    print("=" * 65)
     print("📍 Puntos de acceso disponibles:")
     print(f"   🌐 Dashboard Web HITL:      http://localhost:{effective_dashboard_port}/admin")
     print(f"   🤖 Agente API REST:         http://localhost:{effective_agent_port}")
@@ -1178,10 +1189,10 @@ def handle_run(args: argparse.Namespace) -> int:
     print(f"   🩺 Comprobación de Salud:   http://localhost:{effective_agent_port}/health")
     print("   🗄️ PostgreSQL Dashboard:   Interno (red privada Docker, host 8882 desactivado)")
     print("   🗄️ PostgreSQL Agente:      Interno (red privada Docker, host 8883 desactivado)")
-    print("\n🔐 Credenciales de acceso al Dashboard:")
+    print("\n🔐 Credenciales de acceso al Dashboard (SOLO DESARROLLO LOCAL):")
     print("   • URL:                      http://localhost:8880/admin")
     print("   • Usuario:                  admin@local.test")
-    print("   • Contraseña:               admin123456")
+    print("   • Contraseña:               admin123456 (insegura por defecto)")
     print("\n💡 Comandos de gestión rápida:")
     print("   • Ver logs en tiempo real:  jg run -l")
     print("   • Ver estado de servicios:  jg run -s")

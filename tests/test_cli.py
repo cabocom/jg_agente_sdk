@@ -279,3 +279,43 @@ def test_scaffold_does_not_traverse_parent_env(
     # No debe haber adoptado el modelo del .env del padre
     assert "parent/custom-model" not in generated_env
     assert "openai/gpt-oss-120b" in generated_env
+
+
+def test_scaffold_docker_compose_security_warnings(tmp_path: Path):
+    """Verifica SDK-SEC-02: docker-compose.yml incluye advertencias de seguridad para credenciales por defecto."""
+    target_dir = tmp_path / "jg_plugin_sec02"
+    generate_plugin_scaffold(name="sec02", target_dir=target_dir)
+
+    compose_path = target_dir / "docker-compose.yml"
+    assert compose_path.is_file()
+    compose_text = compose_path.read_text(encoding="utf-8")
+
+    assert "ADVERTENCIA DE SEGURIDAD (SDK-SEC-02)" in compose_text
+    assert (
+        "Los valores por defecto a continuación son ÚNICAMENTE para desarrollo local"
+        in compose_text
+    )
+
+
+def test_cli_run_prints_security_warning_banner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """Verifica SDK-SEC-02: jg run imprime banner de advertencia sobre credenciales de desarrollo."""
+    import subprocess
+
+    dummy_compose = tmp_path / "docker-compose.yml"
+    dummy_compose.write_text("services: {}\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    # Simular ejecución exitosa de docker compose
+    def fake_subprocess_run(cmd, *args, **kwargs):
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_subprocess_run)
+
+    ret = main(["run"])
+    assert ret == 0
+
+    captured = capsys.readouterr()
+    assert "Stack iniciado con credenciales de DESARROLLO" in captured.out
+    assert "Configura el .env antes de desplegar en producción" in captured.out
