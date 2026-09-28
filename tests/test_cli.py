@@ -246,3 +246,36 @@ def test_scaffold_does_not_leak_api_key_in_env(
     assert (
         "Se detectó GROQ_API_KEY en el entorno, pero por seguridad NO se incluirá" in captured.out
     )
+
+
+def test_scaffold_does_not_traverse_parent_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """Verifica SDK-SEC-04: El scaffold no debe subir por árboles de directorios padre buscando .env."""
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GLOBAL_GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+
+    # Simular estructura de monorepo con .env en la raíz
+    monorepo_root = tmp_path / "monorepo"
+    monorepo_root.mkdir()
+    parent_env = monorepo_root / ".env"
+    parent_env.write_text(
+        "GROQ_API_KEY=gsk_parent_monorepo_secret_999\nLLM_MODEL=parent/custom-model\n",
+        encoding="utf-8",
+    )
+
+    nested_target_dir = monorepo_root / "packages" / "plugins" / "my_plugin"
+    created = generate_plugin_scaffold(
+        name="my_plugin",
+        target_dir=nested_target_dir,
+    )
+
+    assert created == nested_target_dir
+    generated_env = (nested_target_dir / ".env").read_text(encoding="utf-8")
+
+    # No debe haber filtrado la clave del padre
+    assert "gsk_parent_monorepo_secret_999" not in generated_env
+    # No debe haber adoptado el modelo del .env del padre
+    assert "parent/custom-model" not in generated_env
+    assert "openai/gpt-oss-120b" in generated_env

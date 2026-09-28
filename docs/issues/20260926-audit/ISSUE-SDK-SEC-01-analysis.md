@@ -6,8 +6,8 @@ En la versión 1.0.0 inicial de `jg_sdk/cli.py`, la función `generate_plugin_sc
 - Si estaban vacías, ejecutaba un bucle recursivo sobre `[out_dir, *out_dir.parents]` abriendo cualquier fichero `.env` en los directorios superiores para parsear valores de `GROQ_API_KEY` o `GLOBAL_GROQ_API_KEY`.
 - Escribía el valor extraído en el archivo `.env` de destino:
   ```python
-  GROQ_API_KEY={detected_groq_key}
-  GLOBAL_GROQ_API_KEY={detected_groq_key}
+  GROQ_API_KEY = {detected_groq_key}
+  GLOBAL_GROQ_API_KEY = {detected_groq_key}
   ```
 
 ## 2. Vectores de Riesgo Identificados

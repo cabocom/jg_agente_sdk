@@ -100,9 +100,19 @@ Si el desarrollador despliega el `docker-compose.yml` generado en producción si
 
 ```python
 subprocess.run(
-    ["docker", "compose", "exec", "-T", "jg_dashboard", "php", "artisan", "tinker",
-     "--execute=\\App\\Models\\Agent::where('agent_id', 'a0000000-0000-0000-0000-000000000002')->delete();"],
-    cwd=plugin_root, capture_output=True,
+    [
+        "docker",
+        "compose",
+        "exec",
+        "-T",
+        "jg_dashboard",
+        "php",
+        "artisan",
+        "tinker",
+        "--execute=\\App\\Models\\Agent::where('agent_id', 'a0000000-0000-0000-0000-000000000002')->delete();",
+    ],
+    cwd=plugin_root,
+    capture_output=True,
 )
 ```
 
