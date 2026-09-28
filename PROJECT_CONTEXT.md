@@ -1,16 +1,16 @@
 # CONTEXTO DE PROYECTO: jg_agente_sdk
 
-**Versión del documento:** 1.0.0  
-**Fecha de consolidación:** 24 de septiembre de 2026  
+**Versión del documento:** 1.0.1  
+**Fecha de consolidación:** 28 de septiembre de 2026  
 **Componente:** SDK Público de Desarrollo y Biblioteca Cliente (Plugin Development & Execution Client)  
 **Stack Tecnológico:** Python >= 3.11, Pydantic v2, HTTPX, Setuptools, Ruff, Pytest  
 **Estado:** Producción / Consolidado como Fuente Única de Verdad (SSOT).  
 - **Fuente Única de Verdad (SSOT):** Define todos los contratos públicos canónicos del ecosistema (`AgentTool`, `ToolResult`, `RiskLevel`, `ToolType`, `ExecutionStatus`, `BasePlugin`, `BaseEngine`, `PluginMetadata`, `AgentInput`, `AgentOutput`).
 - **Desacoplamiento Absoluto:** Cero dependencias de frameworks pesados (sin LangChain, LangGraph, FastAPI, SQLAlchemy ni bases de datos).
 - **Tipado Estricto (PEP 561):** Incluye marcador `py.typed` para autocompletado y validación estática transparente con MyPy en cualquier consumidor.
-- **Herramienta de Línea de Comandos (`jg` / `jg-sdk`):** CLI integrado para invocación interactiva de agentes, ping de salud, inspección de capacidades y soporte de parámetros descriptivos (`--host`, `--port`, `--dashboard-port`).
+- **Herramienta de Línea de Comandos (`jg` / `jg-sdk`):** CLI integrado para invocación interactiva de agentes, ping de salud, inspección de capacidades, soporte de parámetros descriptivos y scaffolding seguro (`jg plugin init`) blindado contra filtraciones de secretos en `.env` (SDK-SEC-01 / SDK-SEC-04).
 - **Cliente HTTP con Firma HMAC-SHA256:** `AgentClient` implementa la especificación criptográfica de firma simétrica canónica y prevención de replay attacks requerida por `jg_agente`.
-- **Suite de Calidad Automatizada:** Script de validación `scripts/check.sh` con Ruff (linter y formateo) y Pytest pasando al 100% (38 tests).
+- **Suite de Calidad Automatizada:** Script de validación `scripts/check.sh` con Ruff (linter y formateo) y Pytest pasando al 100% (41 tests unitarios).
 
 ---
 
@@ -50,7 +50,9 @@ jg_agente_sdk/
 │   ├── contracts.py        # Contratos canónicos: AgentTool, ToolResult, BasePlugin, RiskLevel
 │   ├── models.py           # Modelos de I/O: AgentInput, AgentOutput, UserContext, ExecutionStatus
 │   └── py.typed            # Marcador PEP 561 de tipado estático
-├── tests/                  # Suite de 38 tests unitarios (CLI, HMAC, contratos, plugins)
+├── tests/                  # Suite de 41 tests unitarios (CLI, HMAC, contratos, plugins, seguridad)
+├── docs/                   # Documentación técnica, trazabilidad y resolución de issues
+│   └── issues/             # Issues documentados con análisis, walkthrough y cierre
 ├── scripts/
 │   └── check.sh            # Pipeline de verificación (Ruff + Pytest)
 ├── pyproject.toml          # Metadatos del paquete y configuración de empaquetado
