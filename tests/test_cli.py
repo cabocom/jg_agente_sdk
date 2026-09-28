@@ -212,3 +212,37 @@ def test_cli_status_execution(capsys: pytest.CaptureFixture[str]):
     assert ret == 0
     captured = capsys.readouterr()
     assert "Estado de Servicios y Runtimes" in captured.out
+
+
+def test_scaffold_does_not_leak_api_key_in_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """Verifica SDK-SEC-01: El .env generado no debe contener claves de API reales del entorno."""
+    real_secret_key = "gsk_super_secret_production_key_123456789"
+    monkeypatch.setenv("GROQ_API_KEY", real_secret_key)
+    monkeypatch.setenv("GLOBAL_GROQ_API_KEY", real_secret_key)
+
+    target_dir = tmp_path / "jg_plugin_secure"
+    created = generate_plugin_scaffold(
+        name="secure",
+        target_dir=target_dir,
+    )
+
+    assert created == target_dir
+    env_path = target_dir / ".env"
+    assert env_path.is_file()
+
+    env_content = env_path.read_text(encoding="utf-8")
+    assert real_secret_key not in env_content
+    assert "GROQ_API_KEY=" in env_content
+
+    for line in env_content.splitlines():
+        if line.startswith("GROQ_API_KEY="):
+            assert line.strip() == "GROQ_API_KEY="
+        if line.startswith("GLOBAL_GROQ_API_KEY="):
+            assert line.strip() == "GLOBAL_GROQ_API_KEY="
+
+    captured = capsys.readouterr()
+    assert (
+        "Se detectó GROQ_API_KEY en el entorno, pero por seguridad NO se incluirá" in captured.out
+    )

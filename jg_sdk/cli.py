@@ -752,30 +752,18 @@ jg run
 ```
 """
 
-    # 4. Detectar si existe clave LLM y modelo en el entorno para prellenar .env y docker-compose
-    detected_groq_key = os.environ.get("GLOBAL_GROQ_API_KEY") or os.environ.get("GROQ_API_KEY", "")
-    detected_llm_model = os.environ.get("LLM_MODEL", "")
-    if not detected_groq_key or not detected_llm_model:
-        # Buscar en archivo .env en directorio actual o padres
-        for env_dir in [out_dir, *out_dir.parents]:
-            cand_env = env_dir / ".env"
-            if cand_env.is_file():
-                for line in cand_env.read_text(encoding="utf-8", errors="ignore").splitlines():
-                    if (
-                        line.startswith("GLOBAL_GROQ_API_KEY=") or line.startswith("GROQ_API_KEY=")
-                    ) and not detected_groq_key:
-                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
-                        if val:
-                            detected_groq_key = val
-                    elif line.startswith("LLM_MODEL=") and not detected_llm_model:
-                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
-                        if val:
-                            detected_llm_model = val
-            if detected_groq_key and detected_llm_model:
-                break
+    # 4. Configuración segura de modelo LLM y aviso preventivo de credenciales (SDK-SEC-01 / SDK-SEC-04)
+    has_groq_key_in_env = bool(
+        os.environ.get("GLOBAL_GROQ_API_KEY") or os.environ.get("GROQ_API_KEY")
+    )
+    detected_llm_model = os.environ.get("LLM_MODEL") or "openai/gpt-oss-120b"
 
-    if not detected_llm_model:
-        detected_llm_model = "openai/gpt-oss-120b"
+    if has_groq_key_in_env:
+        print(
+            "⚠️  [Seguridad] Se detectó GROQ_API_KEY en el entorno, pero por seguridad "
+            "NO se incluirá en el archivo .env generado para evitar fugas accidentales en Git.",
+            flush=True,
+        )
 
     # 5. Generar docker-compose.yml autónomo con Dashboard, Agente y PostgreSQL
     docker_compose_content = f"""# ==============================================================================
@@ -956,9 +944,10 @@ ADMIN_DEFAULT_PASSWORD=admin123456
 """
 
     env_content = f"""# Variables de entorno locales generadas para {pkg_name}
+# NOTA DE SEGURIDAD: Configura tu clave de API antes de iniciar el agente. Nunca la expongas en Git.
 ENV=development
-GROQ_API_KEY={detected_groq_key}
-GLOBAL_GROQ_API_KEY={detected_groq_key}
+GROQ_API_KEY=
+GLOBAL_GROQ_API_KEY=
 LLM_PROVIDER=groq
 LLM_MODEL={detected_llm_model}
 JG_AGENTE_SECRET=secret_dev_token_12345
