@@ -248,6 +248,20 @@ def test_scaffold_does_not_leak_api_key_in_env(
     )
 
 
+def test_scaffold_env_does_not_inject_real_api_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Verifica SDK-TEST-01: El scaffold no inyecta claves API reales en .env bajo ninguna circunstancia."""
+    real_api_key = "sk-test-real-key-12345"
+    monkeypatch.setenv("GROQ_API_KEY", real_api_key)
+    monkeypatch.setenv("GLOBAL_GROQ_API_KEY", real_api_key)
+
+    target_dir = tmp_path / "my_plugin"
+    generate_plugin_scaffold(name="my_plugin", target_dir=target_dir)
+
+    env_content = (target_dir / ".env").read_text(encoding="utf-8")
+    assert real_api_key not in env_content
+    assert "GROQ_API_KEY=" in env_content
+
+
 def test_scaffold_does_not_traverse_parent_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
