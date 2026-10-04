@@ -69,6 +69,7 @@ exclude = [
     "dist",
     "build",
     "__pycache__",
+    "*.md",
 ]
 
 [tool.ruff.lint]

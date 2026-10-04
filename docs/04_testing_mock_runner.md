@@ -15,6 +15,7 @@ import pytest
 from jg_sdk.testing import MockPluginRunner
 from jg_plugin_datosgob.plugin import DatosGobPlugin
 
+
 @pytest.mark.asyncio
 async def test_plugin_lifecycle_and_tools():
     plugin = DatosGobPlugin()

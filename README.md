@@ -31,22 +31,22 @@ Esto permite que cualquier desarrollador u organización cree plugins de especia
 Descriptor declarativo de una herramienta ejecutable:
 ```python
 class AgentTool(BaseModel):
-    name: str                                  # Identificador único de la herramienta
-    description: str                           # Descripción funcional clara para el LLM
-    category: str = "general"                  # Categoría taxonómica
-    version: str = "1.0.0"                     # Versión semántica
-    args_schema: type[BaseModel] | None = None # Esquema Pydantic de argumentos
-    func: Callable[..., Any]                   # Función invocable
-    risk_level: RiskLevel = RiskLevel.LOW      # LOW, MEDIUM, HIGH, CRITICAL
-    required_permissions: list[str] = []       # Scopes RBAC requeridos
-    tool_type: ToolType = ToolType.OBSERVER    # observer, actuator, verifier, read, mutation
-    read_only: bool = True                     # Ausencia de efectos secundarios
-    reversible: bool = False                   # Capacidad de compensación
-    idempotent: bool = True                    # Idempotencia de ejecución
-    makes_http_requests: bool = False          # Sujeto a validación SSRF
-    allow_failure: bool = False                # Si es True, su fallo no interrumpe el plan
-    timeout_sec: float = 30.0                  # Límite temporal duro
-    rollback_func: Callable[[dict], ToolResult] | None = None # Compensador
+    name: str  # Identificador único de la herramienta
+    description: str  # Descripción funcional clara para el LLM
+    category: str = "general"  # Categoría taxonómica
+    version: str = "1.0.0"  # Versión semántica
+    args_schema: type[BaseModel] | None = None  # Esquema Pydantic de argumentos
+    func: Callable[..., Any]  # Función invocable
+    risk_level: RiskLevel = RiskLevel.LOW  # LOW, MEDIUM, HIGH, CRITICAL
+    required_permissions: list[str] = []  # Scopes RBAC requeridos
+    tool_type: ToolType = ToolType.OBSERVER  # observer, actuator, verifier, read, mutation
+    read_only: bool = True  # Ausencia de efectos secundarios
+    reversible: bool = False  # Capacidad de compensación
+    idempotent: bool = True  # Idempotencia de ejecución
+    makes_http_requests: bool = False  # Sujeto a validación SSRF
+    allow_failure: bool = False  # Si es True, su fallo no interrumpe el plan
+    timeout_sec: float = 30.0  # Límite temporal duro
+    rollback_func: Callable[[dict], ToolResult] | None = None  # Compensador
 ```
 
 > **Regla de Validación:** Si `reversible=True`, el validador Pydantic exige obligatoriamente un invocable no nulo en `rollback_func`.
@@ -85,14 +85,12 @@ from jg_sdk.models import AgentInput
 client = AgentClient(
     base_url="http://jg_agente:8000",
     agent_id="a0000000-0000-0000-0000-000000000001",
-    secret="mi_secreto_permanente_64_caracteres"
+    secret="mi_secreto_permanente_64_caracteres",
 )
 
 # Invocación síncrona
 input_data = AgentInput(
-    execution_id="exec-123",
-    thread_id="th-456",
-    prompt="Consultar estado de servicios"
+    execution_id="exec-123", thread_id="th-456", prompt="Consultar estado de servicios"
 )
 output = client.trigger(input_data)
 print(output.response)
@@ -114,6 +112,7 @@ Permite probar el ciclo de vida completo de un plugin y la ejecución de herrami
 import pytest
 from jg_sdk.testing import MockPluginRunner
 from mi_plugin.plugin import MiPlugin
+
 
 @pytest.mark.asyncio
 async def test_plugin():

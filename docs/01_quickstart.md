@@ -30,16 +30,17 @@ jg-sdk-cli --help
 from pydantic import BaseModel, Field
 from jg_sdk.contracts import AgentTool, ToolResult, RiskLevel, ToolType
 
+
 class HostnameInput(BaseModel):
     hostname: str = Field(..., description="Nombre del host a comprobar")
+
 
 def ping_check(args: HostnameInput) -> ToolResult:
     # Lógica de comprobación
     return ToolResult(
-        success=True,
-        output=f"Host {args.hostname} responde en 12ms",
-        metadata={"latency_ms": 12.0}
+        success=True, output=f"Host {args.hostname} responde en 12ms", metadata={"latency_ms": 12.0}
     )
+
 
 tool = AgentTool(
     name="ping_check",
@@ -49,7 +50,7 @@ tool = AgentTool(
     risk_level=RiskLevel.LOW,
     tool_type=ToolType.OBSERVER,
     read_only=True,
-    timeout_sec=5.0
+    timeout_sec=5.0,
 )
 
 # Ejecución aislada con control de timeouts
@@ -64,6 +65,7 @@ print(res.output)
 ```python
 from jg_sdk.contracts import BasePlugin, PluginMetadata, AgentTool, BaseEngine
 
+
 class NetworkPlugin(BasePlugin):
     def get_plugin_metadata(self) -> PluginMetadata:
         return PluginMetadata(
@@ -71,7 +73,7 @@ class NetworkPlugin(BasePlugin):
             version="1.0.0",
             description="Herramientas de diagnóstico de red para jg_agente",
             author="Tu Organización",
-            tags=["network", "diagnostics"]
+            tags=["network", "diagnostics"],
         )
 
     def register_tools(self) -> list[AgentTool]:
