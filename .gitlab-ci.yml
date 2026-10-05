@@ -2,6 +2,7 @@ stages:
   - lint
   - test
   - build
+  - release
   - publish
 
 variables:
@@ -75,6 +76,26 @@ build:package:
     expire_in: 1 week
 
 # ==========================================
+# STAGE: RELEASE (GitLab Package Registry)
+# ==========================================
+release:package_registry:
+  stage: release
+  needs:
+    - test:pytest
+    - build:package
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
+    - if: $CI_COMMIT_TAG
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install twine build
+  script:
+    - echo "📦 Publicando artefactos en GitLab Package Registry (ID: ${CI_PROJECT_ID})..."
+    - python -m build
+    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*
+    - echo "✅ Artefactos publicados exitosamente en GitLab Package Registry con CI_JOB_TOKEN."
+
+# ==========================================
 # STAGE: PUBLISH (PyPI Oficial - pypi.org)
 # ==========================================
 publish:pypi:
@@ -82,9 +103,10 @@ publish:pypi:
   needs:
     - build:package
   rules:
+    - if: $CI_COMMIT_TAG && $PYPI_TOKEN
     - if: $CI_COMMIT_TAG
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
   before_script:
     - python -m pip install --upgrade pip
     - pip install twine
