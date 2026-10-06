@@ -90,10 +90,10 @@ release:package_registry:
     - python -m pip install --upgrade pip
     - pip install twine build
   script:
-    - echo "📦 Publicando artefactos en GitLab Package Registry (ID: ${CI_PROJECT_ID})..."
-    - python -m build
-    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*
-    - echo "✅ Artefactos publicados exitosamente en GitLab Package Registry con CI_JOB_TOKEN."
+    - 'echo "📦 Publicando artefactos en GitLab Package Registry (ID: ${CI_PROJECT_ID})..."'
+    - 'python -m build'
+    - 'TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*'
+    - 'echo "✅ Artefactos publicados exitosamente en GitLab Package Registry con CI_JOB_TOKEN."'
 
 # ==========================================
 # STAGE: PUBLISH (PyPI Oficial - pypi.org)

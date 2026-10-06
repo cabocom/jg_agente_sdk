@@ -12,7 +12,15 @@ from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from jg_sdk.contracts import ExecutionStatus, RiskLevel, StepStatus
+from jg_sdk.contracts import (
+    ExecutionStatus as ExecutionStatus,
+)
+from jg_sdk.contracts import (
+    RiskLevel as RiskLevel,
+)
+from jg_sdk.contracts import (
+    StepStatus as StepStatus,
+)
 
 # =====================================================================
 # 1. Enums Operacionales Adicionales
