@@ -7,12 +7,14 @@ el ecosistema jg_agente de forma estandarizada y determinista.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import re
 import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import httpx
 
@@ -1365,6 +1367,289 @@ def handle_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def resolve_target_plugins_dir(explicit_target: Path | str | None = None) -> Path:
+    """Resuelve la ruta al directorio plugins/ del agente."""
+    if explicit_target is not None:
+        return Path(explicit_target).resolve()
+
+    cwd = Path.cwd()
+    candidates = [
+        cwd / "plugins",
+        cwd / "jg_agente" / "plugins",
+        cwd.parent / "jg_agente" / "plugins",
+        cwd.parent / "plugins",
+    ]
+    for c in candidates:
+        if c.is_dir():
+            return c.resolve()
+
+    return (cwd / "plugins").resolve()
+
+
+def inspect_plugin_metadata(plugin_source_dir: Path | str) -> dict[str, Any]:
+    """Inspecciona estáticamente un plugin para extraer metadatos, engines y capacidades."""
+    source = Path(plugin_source_dir).resolve()
+    if not source.exists():
+        return {"error": f"La ruta del plugin no existe: {source}"}
+
+    package_dir: Path | None = None
+    package_name: str = ""
+
+    if (source / "plugin.py").is_file():
+        package_dir = source
+        package_name = source.name
+    elif source.is_dir():
+        for child in source.iterdir():
+            if child.is_dir() and (child / "plugin.py").is_file():
+                package_dir = child
+                package_name = child.name
+                break
+
+    pyproject = source / "pyproject.toml"
+    if pyproject.is_file():
+        content = pyproject.read_text(encoding="utf-8", errors="ignore")
+        match = re.search(r'name\s*=\s*["\']([^"\']+)["\']', content)
+        if match and not package_name:
+            pkg_name_from_pyproject = match.group(1).replace("-", "_")
+            package_name = pkg_name_from_pyproject
+            if (source / pkg_name_from_pyproject).is_dir():
+                package_dir = source / pkg_name_from_pyproject
+
+    if package_dir is None:
+        return {"error": f"No se encontró un paquete Python válido con 'plugin.py' en: {source}"}
+
+    if not package_name:
+        package_name = package_dir.name
+
+    code_texts: list[str] = []
+    for py_file in package_dir.glob("*.py"):
+        with contextlib.suppress(Exception):
+            code_texts.append(py_file.read_text(encoding="utf-8", errors="ignore"))
+
+    combined_code = "\n".join(code_texts)
+
+    engines: list[str] = []
+    if "ObserverEngine" in combined_code:
+        engines.append("observer_engine")
+    if "PlannerEngine" in combined_code:
+        engines.append("planner_engine")
+    if "VerifierEngine" in combined_code:
+        engines.append("verifier_engine")
+    if "DiagnosticEngine" in combined_code:
+        engines.append("diagnostic_engine")
+
+    is_privileged = any(
+        kw in combined_code
+        for kw in [
+            "docker_socket",
+            "DOCKER_HOST",
+            "docker_restart",
+            "docker_list",
+            "tecnativa",
+            "docker.from_env",
+            "docker_inspect",
+        ]
+    )
+
+    has_external_network = any(
+        kw in combined_code
+        for kw in [
+            "httpx",
+            "requests",
+            "urllib",
+            "weather",
+            "news",
+            "rss",
+            "datosgob",
+            "http://",
+            "https://",
+        ]
+    )
+
+    return {
+        "package_name": package_name,
+        "package_dir": package_dir,
+        "engines": engines,
+        "is_privileged": is_privileged,
+        "has_external_network": has_external_network,
+        "error": None,
+    }
+
+
+def inspect_plugins_in_dir(target_plugins_dir: Path) -> list[dict[str, Any]]:
+    """Inspecciona todos los plugins existentes en target_plugins_dir."""
+    if not target_plugins_dir.is_dir():
+        return []
+
+    plugins: list[dict[str, Any]] = []
+    for entry in target_plugins_dir.iterdir():
+        if entry.is_dir() or entry.is_symlink():
+            meta = inspect_plugin_metadata(entry)
+            if not meta.get("error"):
+                plugins.append(meta)
+    return plugins
+
+
+def link_plugin(
+    plugin_path: Path | str = ".",
+    target_dir: Path | str | None = None,
+    force: bool = False,
+) -> tuple[int, str]:
+    """Crea un enlace simbólico de un plugin hacia el directorio plugins/ del agente."""
+    meta = inspect_plugin_metadata(plugin_path)
+    if meta.get("error"):
+        return 1, f"❌ Error: {meta['error']}"
+
+    pkg_name = meta["package_name"]
+    pkg_dir: Path = meta["package_dir"]
+    target_plugins = resolve_target_plugins_dir(target_dir)
+    target_plugins.mkdir(parents=True, exist_ok=True)
+
+    symlink_path = target_plugins / pkg_name
+
+    existing_plugins = [
+        p for p in inspect_plugins_in_dir(target_plugins) if p["package_name"] != pkg_name
+    ]
+
+    # 1. Comprobación de colisión de motores cognitivos exclusivos
+    for existing in existing_plugins:
+        shared_engines = set(meta["engines"]).intersection(set(existing["engines"]))
+        if shared_engines:
+            conflicts = ", ".join(sorted(shared_engines))
+            if not force:
+                return (
+                    2,
+                    f"❌ Conflicto de Motores Cognitivos Detectado:\n"
+                    f"   El plugin '{pkg_name}' define motor(es) [{conflicts}], pero el agente ya\n"
+                    f"   tiene activo el plugin '{existing['package_name']}' con el mismo tipo de motor.\n"
+                    f"   Dos plugins no pueden registrar la misma capacidad de ciclo (BootConflictError).\n"
+                    f"   Usa --force para ignorar esta validación si es para un entorno de pruebas.",
+                )
+
+    # 2. Comprobación de seguridad: Privilegios de Docker / Infraestructura vs Red Externa
+    for existing in existing_plugins:
+        if (meta["is_privileged"] and existing["has_external_network"]) or (
+            meta["has_external_network"] and existing["is_privileged"]
+        ):
+            priv_name = pkg_name if meta["is_privileged"] else existing["package_name"]
+            net_name = pkg_name if meta["has_external_network"] else existing["package_name"]
+            if not force:
+                return (
+                    3,
+                    f"⚠️  ALERTA DE SEGURIDAD (Principio de Mínimo Privilegio - AGENTE-SEC-01):\n"
+                    f"   Conflicto de aislamiento detectado:\n"
+                    f"   • Plugin con privilegios sobre Docker/sistema: '{priv_name}'\n"
+                    f"   • Plugin expuesto a red externa/estímulos abiertos: '{net_name}'\n\n"
+                    f"   Mezclar ambos perfiles en el mismo runtime de ejecución vulnera el aislamiento\n"
+                    f"   y expone el daemon de Docker ante posibles movimientos laterales o inyecciones.\n"
+                    f"   Se recomienda mantener cada perfil en un agente independiente (Estrategia Multi-Agente).\n"
+                    f"   Usa --force para forzar la vinculación en entornos de desarrollo local.",
+                )
+
+    # 3. Crear o actualizar enlace simbólico
+    if symlink_path.is_symlink():
+        symlink_path.unlink()
+    elif symlink_path.exists():
+        if not force:
+            return (
+                1,
+                f"❌ El destino '{symlink_path}' ya existe y no es un enlace simbólico.\n"
+                f"   Usa --force para reemplazarlo.",
+            )
+        import shutil
+
+        try:
+            if symlink_path.is_dir():
+                shutil.rmtree(symlink_path)
+            else:
+                symlink_path.unlink()
+        except PermissionError:
+            return (
+                1,
+                f"❌ Error de permisos al intentar reemplazar '{symlink_path}'.\n"
+                f"   Si hay un contenedor Docker activo montando esta ruta, deténgalo primero ('docker compose stop').",
+            )
+
+    try:
+        try:
+            rel_target = os.path.relpath(pkg_dir, start=target_plugins)
+            symlink_path.symlink_to(rel_target, target_is_directory=True)
+            link_display = f"{rel_target}"
+        except ValueError:
+            symlink_path.symlink_to(pkg_dir, target_is_directory=True)
+            link_display = f"{pkg_dir}"
+
+        return (
+            0,
+            f"✨ Plugin '{pkg_name}' enlazado con éxito:\n"
+            f"   🔗 {symlink_path} -> {link_display}\n"
+            f"   Directorio del agente: {target_plugins}",
+        )
+    except Exception as exc:
+        return 1, f"❌ Fallo al crear el enlace simbólico: {exc}"
+
+
+def unlink_plugin(
+    plugin_name: str,
+    target_dir: Path | str | None = None,
+) -> tuple[int, str]:
+    """Elimina de forma segura el enlace simbólico de un plugin."""
+    target_plugins = resolve_target_plugins_dir(target_dir)
+    target = target_plugins / plugin_name
+
+    if not target.exists() and not target.is_symlink() and not plugin_name.startswith("jg_plugin_"):
+        alt = target_plugins / f"jg_plugin_{plugin_name}"
+        if alt.exists() or alt.is_symlink():
+            target = alt
+            plugin_name = alt.name
+
+    if not target.exists() and not target.is_symlink():
+        return (
+            1,
+            f"❌ No se encontró ningún plugin o enlace con el nombre '{plugin_name}' en: {target_plugins}",
+        )
+
+    if not target.is_symlink():
+        return (
+            1,
+            f"❌ '{target}' es un directorio real y no un enlace simbólico.\n"
+            f"   Por seguridad, jg unlink solo elimina enlaces simbólicos para no destruir código fuente.",
+        )
+
+    try:
+        target.unlink()
+        return 0, f"🗑️  Enlace simbólico '{plugin_name}' desvinculado con éxito de: {target_plugins}"
+    except Exception as exc:
+        return 1, f"❌ Fallo al eliminar enlace simbólico: {exc}"
+
+
+def handle_link(args: argparse.Namespace) -> int:
+    """Manejador del comando 'jg plugin link' / 'jg link'."""
+    code, msg = link_plugin(
+        plugin_path=getattr(args, "path", Path(".")),
+        target_dir=getattr(args, "target", None),
+        force=getattr(args, "force", False),
+    )
+    if code == 0:
+        print(msg)
+    else:
+        print(msg, file=sys.stderr)
+    return code
+
+
+def handle_unlink(args: argparse.Namespace) -> int:
+    """Manejador del comando 'jg plugin unlink' / 'jg unlink'."""
+    code, msg = unlink_plugin(
+        plugin_name=args.name,
+        target_dir=getattr(args, "target", None),
+    )
+    if code == 0:
+        print(msg)
+    else:
+        print(msg, file=sys.stderr)
+    return code
+
+
 def main(argv: list[str] | None = None) -> int:
     """Punto de entrada principal para la CLI jg / jg-sdk."""
     prog_name = Path(sys.argv[0]).name if sys.argv and sys.argv[0] else "jg"
@@ -1422,7 +1707,47 @@ def main(argv: list[str] | None = None) -> int:
             help="Sobrescribe archivos si el directorio destino ya existe.",
         )
 
-    # 1. Subcomando 'plugin' con sub-subcomando 'init'
+    def _configure_link_args(target_parser: argparse.ArgumentParser) -> None:
+        target_parser.add_argument(
+            "path",
+            nargs="?",
+            default=Path("."),
+            type=Path,
+            help="Ruta al plugin o paquete a vincular (por defecto: el directorio actual '.').",
+        )
+        target_parser.add_argument(
+            "-t",
+            "--target",
+            "--target-dir",
+            dest="target",
+            type=Path,
+            default=None,
+            help="Directorio plugins/ de destino del agente (autodetectado si se omite).",
+        )
+        target_parser.add_argument(
+            "-f",
+            "--force",
+            action="store_true",
+            help="Fuerza la creación del enlace omitiendo advertencias de seguridad o conflictos.",
+        )
+
+    def _configure_unlink_args(target_parser: argparse.ArgumentParser) -> None:
+        target_parser.add_argument(
+            "name",
+            type=str,
+            help="Nombre del plugin a desvincular (ej. 'jg_plugin_conversational' o 'conversational').",
+        )
+        target_parser.add_argument(
+            "-t",
+            "--target",
+            "--target-dir",
+            dest="target",
+            type=Path,
+            default=None,
+            help="Directorio plugins/ de destino del agente (autodetectado si se omite).",
+        )
+
+    # 1. Subcomando 'plugin' con operaciones de plugin
     plugin_parser = subparsers.add_parser(
         "plugin",
         help="Gestión y desarrollo de plugins.",
@@ -1437,12 +1762,36 @@ def main(argv: list[str] | None = None) -> int:
     )
     _configure_init_args(plugin_init_parser)
 
-    # 2. Alias directo 'init' para conveniencia rápida
+    plugin_link_parser = plugin_subparsers.add_parser(
+        "link",
+        help="Crea un enlace simbólico del plugin en el agente con verificación de seguridad y compatibilidad.",
+    )
+    _configure_link_args(plugin_link_parser)
+
+    plugin_unlink_parser = plugin_subparsers.add_parser(
+        "unlink",
+        help="Elimina el enlace simbólico de un plugin del directorio de plugins del agente.",
+    )
+    _configure_unlink_args(plugin_unlink_parser)
+
+    # 2. Alias directos para conveniencia rápida
     init_parser = subparsers.add_parser(
         "init",
-        help="Alias directo de 'jg-sdk plugin init'.",
+        help="Alias directo de 'jg plugin init'.",
     )
     _configure_init_args(init_parser)
+
+    link_parser = subparsers.add_parser(
+        "link",
+        help="Alias directo de 'jg plugin link'.",
+    )
+    _configure_link_args(link_parser)
+
+    unlink_parser = subparsers.add_parser(
+        "unlink",
+        help="Alias directo de 'jg plugin unlink'.",
+    )
+    _configure_unlink_args(unlink_parser)
 
     # 3. Subcomando 'install'
     subparsers.add_parser(
@@ -1590,6 +1939,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.subcommand == "test":
         return handle_test(args)
+
+    if args.subcommand == "link" or (
+        args.subcommand == "plugin" and getattr(args, "plugin_subcommand", None) == "link"
+    ):
+        return handle_link(args)
+
+    if args.subcommand == "unlink" or (
+        args.subcommand == "plugin" and getattr(args, "plugin_subcommand", None) == "unlink"
+    ):
+        return handle_unlink(args)
 
     is_plugin_init = (
         args.subcommand == "plugin" and getattr(args, "plugin_subcommand", None) == "init"

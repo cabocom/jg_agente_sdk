@@ -358,3 +358,137 @@ def test_scaffold_readme_documents_run_lifecycle_cleanup(tmp_path: Path):
     assert "Ciclo de Vida de `jg run`" in readme_text
     assert "limpieza preventiva en la base de datos del Dashboard" in readme_text
     assert "a0000000-0000-0000-0000-000000000002" in readme_text
+
+
+def test_link_plugin_creates_relative_symlink(tmp_path: Path):
+    """Verifica que link_plugin cree un enlace simbólico relativo portable."""
+    from jg_sdk.cli import link_plugin, unlink_plugin
+
+    plugins_src = tmp_path / "plugins_src" / "jg_plugin_demo"
+    pkg_dir = plugins_src / "jg_plugin_demo"
+    pkg_dir.mkdir(parents=True)
+    (pkg_dir / "__init__.py").write_text("", encoding="utf-8")
+    (pkg_dir / "plugin.py").write_text(
+        "class DemoPlugin:\n    pass\nPLUGIN_CLASS = DemoPlugin\n", encoding="utf-8"
+    )
+
+    agent_plugins = tmp_path / "agent" / "plugins"
+    agent_plugins.mkdir(parents=True)
+
+    code, msg = link_plugin(plugins_src, target_dir=agent_plugins)
+    assert code == 0
+    assert "enlazado con éxito" in msg
+
+    link_target = agent_plugins / "jg_plugin_demo"
+    assert link_target.is_symlink()
+    assert link_target.resolve() == pkg_dir.resolve()
+
+    # Desvincular
+    code_u, msg_u = unlink_plugin("jg_plugin_demo", target_dir=agent_plugins)
+    assert code_u == 0
+    assert "desvinculado con éxito" in msg_u
+    assert not link_target.exists()
+    assert pkg_dir.exists()
+
+
+def test_link_plugin_detects_engine_conflict(tmp_path: Path):
+    """Verifica que link_plugin detecte colisión de motores cognitivos exclusivos."""
+    from jg_sdk.cli import link_plugin
+
+    agent_plugins = tmp_path / "agent" / "plugins"
+    agent_plugins.mkdir(parents=True)
+
+    # 1. Plugin existente con PlannerEngine
+    p1 = agent_plugins / "jg_plugin_p1"
+    p1.mkdir()
+    (p1 / "plugin.py").write_text("class PlannerEngine:\n    pass\n", encoding="utf-8")
+
+    # 2. Plugin nuevo que también define PlannerEngine
+    p2 = tmp_path / "src" / "jg_plugin_p2"
+    p2_pkg = p2 / "jg_plugin_p2"
+    p2_pkg.mkdir(parents=True)
+    (p2_pkg / "plugin.py").write_text("class PlannerEngine:\n    pass\n", encoding="utf-8")
+
+    # Sin force: debe abortar con código 2
+    code, msg = link_plugin(p2, target_dir=agent_plugins, force=False)
+    assert code == 2
+    assert "Conflicto de Motores Cognitivos Detectado" in msg
+
+    # Con force: debe permitirlo
+    code_f, msg_f = link_plugin(p2, target_dir=agent_plugins, force=True)
+    assert code_f == 0
+    assert "enlazado con éxito" in msg_f
+
+
+def test_link_plugin_detects_security_trust_gap(tmp_path: Path):
+    """Verifica que link_plugin alerte sobre mezcla de privilegios Docker y red externa."""
+    from jg_sdk.cli import link_plugin
+
+    agent_plugins = tmp_path / "agent" / "plugins"
+    agent_plugins.mkdir(parents=True)
+
+    # 1. Plugin DevOps privilegiado (socket docker)
+    p_devops = agent_plugins / "jg_plugin_devops"
+    p_devops.mkdir()
+    (p_devops / "plugin.py").write_text(
+        "DOCKER_HOST = 'tcp://...'\ndef docker_restart(): pass\n", encoding="utf-8"
+    )
+
+    # 2. Plugin conversacional con red abierta (httpx, weather)
+    p_conv = tmp_path / "src" / "jg_plugin_conversational"
+    p_conv_pkg = p_conv / "jg_plugin_conversational"
+    p_conv_pkg.mkdir(parents=True)
+    (p_conv_pkg / "plugin.py").write_text(
+        "import httpx\ndef get_weather(): pass\n", encoding="utf-8"
+    )
+
+    # Sin force: debe abortar con alerta de seguridad (código 3)
+    code, msg = link_plugin(p_conv, target_dir=agent_plugins, force=False)
+    assert code == 3
+    assert "ALERTA DE SEGURIDAD" in msg
+    assert "Principio de Mínimo Privilegio" in msg
+
+    # Con force: debe proceder
+    code_f, msg_f = link_plugin(p_conv, target_dir=agent_plugins, force=True)
+    assert code_f == 0
+    assert "enlazado con éxito" in msg_f
+
+
+def test_unlink_plugin_protects_real_directories(tmp_path: Path):
+    """Verifica que unlink_plugin no elimine carpetas reales para no destruir código."""
+    from jg_sdk.cli import unlink_plugin
+
+    agent_plugins = tmp_path / "agent" / "plugins"
+    agent_plugins.mkdir(parents=True)
+
+    real_folder = agent_plugins / "jg_plugin_real"
+    real_folder.mkdir()
+    (real_folder / "plugin.py").write_text("print('hello')", encoding="utf-8")
+
+    code, msg = unlink_plugin("jg_plugin_real", target_dir=agent_plugins)
+    assert code == 1
+    assert "es un directorio real y no un enlace simbólico" in msg
+    assert real_folder.exists()
+
+
+def test_cli_main_link_and_unlink(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    """Verifica la invocación mediante main(['link', ...]) y main(['unlink', ...])."""
+    plugins_src = tmp_path / "my_plugin"
+    pkg = plugins_src / "my_plugin"
+    pkg.mkdir(parents=True)
+    (pkg / "plugin.py").write_text("class MyPlugin: pass", encoding="utf-8")
+
+    agent_plugins = tmp_path / "agent" / "plugins"
+    agent_plugins.mkdir(parents=True)
+
+    # jg link
+    ret_link = main(["link", str(plugins_src), "-t", str(agent_plugins)])
+    assert ret_link == 0
+    captured_link = capsys.readouterr()
+    assert "enlazado con éxito" in captured_link.out
+
+    # jg unlink
+    ret_unlink = main(["unlink", "my_plugin", "-t", str(agent_plugins)])
+    assert ret_unlink == 0
+    captured_unlink = capsys.readouterr()
+    assert "desvinculado con éxito" in captured_unlink.out

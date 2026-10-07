@@ -138,6 +138,12 @@ jg-sdk-cli inspect ./jg_plugin_datosgob
 
 # Validar cumplimiento de contratos
 jg-sdk-cli verify ./jg_plugin_datosgob
+
+# Enlazar plugin en desarrollo a una instancia de agente (con comprobaciones de seguridad)
+jg link jg_plugin_conversational -t jg_agente/plugins
+
+# Desvincular enlace simbólico sin afectar el código fuente
+jg unlink jg_plugin_conversational -t jg_agente/plugins
 ```
 
 ---
