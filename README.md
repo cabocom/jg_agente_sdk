@@ -160,4 +160,4 @@ pytest tests/
 
 ## 8. Licencia
 
-`jg_agente_sdk` se distribuye bajo **Licencia Permisiva de Código Abierto (MIT / Apache-2.0)** para garantizar que organizaciones y terceros desarrollen e integren plugins propietarios o abiertos sin fricción legal.
+Distribuido bajo [Licencia MIT](LICENSE). Permite el desarrollo e integración de plugins libres o propietarios sin restricciones copyleft.

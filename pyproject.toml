@@ -4,12 +4,13 @@ version = "1.0.0"
 description = "SDK desacoplado y contratos públicos para el ecosistema de plugins y clientes de jg_agente"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "AGPL-3.0-or-later"
+license = "MIT"
 authors = [{ name = "Javier Gálvez" }]
 keywords = ["agents", "ai", "plugins", "sdk", "contracts", "hmac"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
