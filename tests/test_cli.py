@@ -218,7 +218,7 @@ def test_scaffold_does_not_leak_api_key_in_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
     """Verifica SDK-SEC-01: El .env generado no debe contener claves de API reales del entorno."""
-    real_secret_key = "gsk_super_secret_production_key_123456789"
+    real_secret_key = "mock_super_secret_production_key_123456789"
     monkeypatch.setenv("GROQ_API_KEY", real_secret_key)
     monkeypatch.setenv("GLOBAL_GROQ_API_KEY", real_secret_key)
 
@@ -250,7 +250,7 @@ def test_scaffold_does_not_leak_api_key_in_env(
 
 def test_scaffold_env_does_not_inject_real_api_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Verifica SDK-TEST-01: El scaffold no inyecta claves API reales en .env bajo ninguna circunstancia."""
-    real_api_key = "sk-test-real-key-12345"
+    real_api_key = "mock-test-real-key-12345"
     monkeypatch.setenv("GROQ_API_KEY", real_api_key)
     monkeypatch.setenv("GLOBAL_GROQ_API_KEY", real_api_key)
 
@@ -275,7 +275,7 @@ def test_scaffold_does_not_traverse_parent_env(
     monorepo_root.mkdir()
     parent_env = monorepo_root / ".env"
     parent_env.write_text(
-        "GROQ_API_KEY=gsk_parent_monorepo_secret_999\nLLM_MODEL=parent/custom-model\n",
+        "GROQ_API_KEY=mock_parent_monorepo_secret_999\nLLM_MODEL=parent/custom-model\n",
         encoding="utf-8",
     )
 
@@ -289,7 +289,7 @@ def test_scaffold_does_not_traverse_parent_env(
     generated_env = (nested_target_dir / ".env").read_text(encoding="utf-8")
 
     # No debe haber filtrado la clave del padre
-    assert "gsk_parent_monorepo_secret_999" not in generated_env
+    assert "mock_parent_monorepo_secret_999" not in generated_env
     # No debe haber adoptado el modelo del .env del padre
     assert "parent/custom-model" not in generated_env
     assert "openai/gpt-oss-120b" in generated_env

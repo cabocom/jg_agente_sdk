@@ -68,3 +68,9 @@ Thumbs.db
 .idea/
 *.sublime-project
 *.sublime-workspace
+
+# Environment & local secrets
+.env
+.env.*
+*.secret
+

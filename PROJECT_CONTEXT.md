@@ -50,7 +50,7 @@ jg_agente_sdk/
 │   ├── contracts.py        # Contratos canónicos: AgentTool, ToolResult, BasePlugin, RiskLevel
 │   ├── models.py           # Modelos de I/O: AgentInput, AgentOutput, UserContext, ExecutionStatus
 │   └── py.typed            # Marcador PEP 561 de tipado estático
-├── tests/                  # Suite de 47 tests unitarios (CLI, HMAC, contratos, plugins, seguridad)
+├── tests/                  # Suite de 52 tests unitarios (CLI, HMAC, contratos, plugins, seguridad)
 ├── docs/                   # Documentación técnica, trazabilidad y resolución de issues
 │   └── issues/             # Issues documentados con análisis, walkthrough y cierre
 ├── scripts/
