@@ -803,7 +803,7 @@ services:
   # 2. Panel Web de Control y Gobernanza HITL (Dashboard Laravel)
   # ============================================================================
   jg_dashboard:
-    image: registry.cabocom.net/javiergalvez-ia/jg_dashboard:latest
+    image: registry.gitlab.com/javiergalvez-ia/jg_dashboard:latest
     container_name: jg_dashboard_{raw_slug}
     restart: unless-stopped
     depends_on:
@@ -866,7 +866,7 @@ services:
   # 4. Agente Cognitivo con plugin {pkg_name} montado
   # ============================================================================
   jg_agente_{raw_slug}:
-    image: registry.cabocom.net/javiergalvez-ia/jg_agente:latest
+    image: registry.gitlab.com/javiergalvez-ia/jg_agente:latest
     container_name: jg_agente_{raw_slug}
     restart: unless-stopped
     depends_on:
