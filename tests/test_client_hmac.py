@@ -1,3 +1,10 @@
+# ==============================================================================
+# Part of the javiergalvez-ia ecosystem.
+# Author: Javier Gálvez <contacto@javiergalvez.com>
+# License: MIT License
+# Project URL: https://javiergalvez.com | https://gitlab.com/javiergalvez-ia/jg_agente_sdk
+# ==============================================================================
+
 """Tests de cálculo criptográfico HMAC-SHA256, anti-replay y cliente JGAgentClient."""
 
 import hashlib

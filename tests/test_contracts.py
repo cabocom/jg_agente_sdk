@@ -1,3 +1,10 @@
+# ==============================================================================
+# Part of the javiergalvez-ia ecosystem.
+# Author: Javier Gálvez <contacto@javiergalvez.com>
+# License: MIT License
+# Project URL: https://javiergalvez.com | https://gitlab.com/javiergalvez-ia/jg_agente_sdk
+# ==============================================================================
+
 """Tests de validación de contratos, esquemas y ciclo de vida de jg_sdk."""
 
 import time

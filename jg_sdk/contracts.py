@@ -1,3 +1,10 @@
+# ==============================================================================
+# Part of the javiergalvez-ia ecosystem.
+# Author: Javier Gálvez <contacto@javiergalvez.com>
+# License: MIT License
+# Project URL: https://javiergalvez.com | https://gitlab.com/javiergalvez-ia/jg_agente_sdk
+# ==============================================================================
+
 """Contratos públicos, metadatos y especificaciones de capacidades para el ecosistema jg_agente.
 
 Este módulo define las interfaces base y modelos necesarios para desarrollar

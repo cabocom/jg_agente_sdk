@@ -1,3 +1,10 @@
+# ==============================================================================
+# Part of the javiergalvez-ia ecosystem.
+# Author: Javier Gálvez <contacto@javiergalvez.com>
+# License: MIT License
+# Project URL: https://javiergalvez.com | https://gitlab.com/javiergalvez-ia/jg_agente_sdk
+# ==============================================================================
+
 """Cliente HTTP asíncrono y utilidades criptográficas HMAC-SHA256 para jg_agente.
 
 Implementa la especificación criptográfica canónica compartida entre el Execution Plane
