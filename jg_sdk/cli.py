@@ -1242,7 +1242,10 @@ def handle_build(args: argparse.Namespace) -> int:
         if not plugin_name:
             plugin_name = plugin_root.name
 
-    if not plugin_name.startswith("jg_plugin_") and (plugin_root / f"jg_plugin_{plugin_name}").exists():
+    if (
+        not plugin_name.startswith("jg_plugin_")
+        and (plugin_root / f"jg_plugin_{plugin_name}").exists()
+    ):
         plugin_name = f"jg_plugin_{plugin_name}"
 
     base_image = getattr(args, "base_image", "registry.gitlab.com/javiergalvez-ia/jg_agente:latest")
@@ -1295,7 +1298,10 @@ USER appuser
         print(f"▶ Ejecutando: {' '.join(cmd_build)}")
         res = subprocess.run(cmd_build, cwd=plugin_root)
         if res.returncode != 0:
-            print(f"❌ Error al construir la imagen Docker (código {res.returncode}).", file=sys.stderr)
+            print(
+                f"❌ Error al construir la imagen Docker (código {res.returncode}).",
+                file=sys.stderr,
+            )
             return res.returncode
 
         print(f"✓ Imagen construida con éxito: {raw_tag}")
@@ -1305,12 +1311,19 @@ USER appuser
             print(f"🚀 Publicando imagen en registro remoto: {raw_tag}...")
             res_push = subprocess.run(["docker", "push", raw_tag], cwd=plugin_root)
             if res_push.returncode != 0:
-                print(f"❌ Error al publicar la imagen en el registro (código {res_push.returncode}).", file=sys.stderr)
+                print(
+                    f"❌ Error al publicar la imagen en el registro (código {res_push.returncode}).",
+                    file=sys.stderr,
+                )
                 return res_push.returncode
 
             ci_branch = os.environ.get("CI_COMMIT_BRANCH")
             ci_default = os.environ.get("CI_DEFAULT_BRANCH", "main")
-            if ci_branch and (ci_branch == ci_default or ci_branch == "main") and not raw_tag.endswith(":latest"):
+            if (
+                ci_branch
+                and (ci_branch == ci_default or ci_branch == "main")
+                and not raw_tag.endswith(":latest")
+            ):
                 base_name = raw_tag.split(":")[0]
                 latest_tag = f"{base_name}:latest"
                 print(f"🏷️ Etiquetando y publicando también como {latest_tag}...")

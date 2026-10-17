@@ -501,7 +501,9 @@ def test_cli_main_link_and_unlink(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert "desvinculado con éxito" in captured_unlink.out
 
 
-def test_cli_main_build(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+def test_cli_main_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
     """Verifica que 'jg build' y 'jg plugin build' ejecuten docker build correctamente."""
     import subprocess
     from unittest.mock import MagicMock
@@ -518,12 +520,16 @@ def test_cli_main_build(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys:
     monkeypatch.setattr(subprocess, "run", mock_run)
 
     # 1. Probar 'jg plugin build'
-    ret_plugin_build = main([
-        "plugin", "build",
-        str(plugin_dir),
-        "--tag", "registry.gitlab.com/javiergalvez-ia/jg_plugin_test:v1.0.0",
-        "--push",
-    ])
+    ret_plugin_build = main(
+        [
+            "plugin",
+            "build",
+            str(plugin_dir),
+            "--tag",
+            "registry.gitlab.com/javiergalvez-ia/jg_plugin_test:v1.0.0",
+            "--push",
+        ]
+    )
     assert ret_plugin_build == 0
     assert mock_run.call_count >= 2  # docker build + docker push
 
@@ -535,14 +541,16 @@ def test_cli_main_build(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys:
 
     # 2. Probar alias 'jg build'
     mock_run.reset_mock()
-    ret_build = main([
-        "build",
-        str(plugin_dir),
-        "--tag", "registry.gitlab.com/javiergalvez-ia/jg_plugin_test:latest",
-    ])
+    ret_build = main(
+        [
+            "build",
+            str(plugin_dir),
+            "--tag",
+            "registry.gitlab.com/javiergalvez-ia/jg_plugin_test:latest",
+        ]
+    )
     assert ret_build == 0
     assert mock_run.call_count == 1
     build_args = mock_run.call_args_list[0][0][0]
     assert "build" in build_args
     assert "registry.gitlab.com/javiergalvez-ia/jg_plugin_test:latest" in build_args
-
