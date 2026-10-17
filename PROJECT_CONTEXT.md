@@ -8,9 +8,9 @@
 - **Fuente Única de Verdad (SSOT):** Define todos los contratos públicos canónicos del ecosistema (`AgentTool`, `ToolResult`, `RiskLevel`, `ToolType`, `ExecutionStatus`, `BasePlugin`, `BaseEngine`, `PluginMetadata`, `AgentInput`, `AgentOutput`).
 - **Desacoplamiento Absoluto:** Cero dependencias de frameworks pesados (sin LangChain, LangGraph, FastAPI, SQLAlchemy ni bases de datos).
 - **Tipado Estricto (PEP 561):** Incluye marcador `py.typed` para autocompletado y validación estática transparente con MyPy en cualquier consumidor.
-- **Herramienta de Línea de Comandos (`jg` / `jg-sdk`):** CLI integrado para invocación interactiva de agentes, ping de salud, inspección de capacidades, soporte de parámetros descriptivos, scaffolding seguro (`jg plugin init`), alertas de credenciales de desarrollo y saneamiento de BD documentado (`jg run`, SDK-SEC-01, SDK-SEC-02, SDK-SEC-03, SDK-SEC-04) y ejecución flexible en `.venv` (`jg dev`, SDK-CLI-01).
+- **Herramienta de Línea de Comandos (`jg` / `jg-sdk`):** CLI integrado para invocación interactiva de agentes, ping de salud, inspección de capacidades, soporte de parámetros descriptivos, scaffolding seguro (`jg plugin init`), alertas de credenciales de desarrollo y saneamiento de BD documentado (`jg run`), ejecución flexible en `.venv` (`jg dev`), vinculación segura de plugins (`jg link` / `jg unlink`) y empaquetado de imágenes Docker inmutables (`jg plugin build` / `jg build`).
 - **Cliente HTTP con Firma HMAC-SHA256:** `AgentClient` implementa la especificación criptográfica de firma simétrica canónica y prevención de replay attacks requerida por `jg_agente`.
-- **Suite de Calidad Automatizada:** Script de validación `scripts/check.sh` con Ruff (linter y formateo) y Pytest pasando al 100% (47 tests unitarios).
+- **Suite de Calidad Automatizada:** Script de validación `scripts/check.sh` con Ruff (linter y formateo) y Pytest pasando al 100% (53 tests unitarios).
 
 ---
 

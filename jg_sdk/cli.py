@@ -1219,6 +1219,114 @@ def handle_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_build(args: argparse.Namespace) -> int:
+    """Construye y empaqueta la imagen Docker del plugin basada en jg_agente."""
+    raw_path = getattr(args, "path", None)
+    plugin_root = Path(raw_path).resolve() if raw_path else Path.cwd()
+
+    # 1. Determinar el nombre del plugin
+    plugin_name = None
+    pyproject_file = plugin_root / "pyproject.toml"
+    if pyproject_file.exists():
+        with contextlib.suppress(Exception):
+            content = pyproject_file.read_text(encoding="utf-8")
+            for line in content.splitlines():
+                if line.strip().startswith("name =") or line.strip().startswith("name="):
+                    plugin_name = line.split("=")[1].strip().strip('"').strip("'")
+                    break
+
+    if not plugin_name:
+        for p in plugin_root.glob("*/plugin.py"):
+            plugin_name = p.parent.name
+            break
+        if not plugin_name:
+            plugin_name = plugin_root.name
+
+    if not plugin_name.startswith("jg_plugin_") and (plugin_root / f"jg_plugin_{plugin_name}").exists():
+        plugin_name = f"jg_plugin_{plugin_name}"
+
+    base_image = getattr(args, "base_image", "registry.gitlab.com/javiergalvez-ia/jg_agente:latest")
+    raw_tag = getattr(args, "tag", None)
+
+    if not raw_tag:
+        ci_registry_image = os.environ.get("CI_REGISTRY_IMAGE")
+        ci_commit_slug = os.environ.get("CI_COMMIT_REF_SLUG", "latest")
+        if ci_registry_image:
+            raw_tag = f"{ci_registry_image}:{ci_commit_slug}"
+        else:
+            raw_tag = f"registry.gitlab.com/javiergalvez-ia/{plugin_name}:{ci_commit_slug}"
+
+    print("=" * 65)
+    print(f"📦 Construyendo imagen Docker para plugin '{plugin_name}'...")
+    print(f"   • Imagen Base:   {base_image}")
+    print(f"   • Tag Destino:   {raw_tag}")
+    print(f"   • Directorio:    {plugin_root}")
+    print("=" * 65)
+
+    dockerfile_path = plugin_root / "Dockerfile"
+    temp_dockerfile = False
+
+    if not dockerfile_path.exists():
+        pkg_dir = plugin_name
+        if not (plugin_root / pkg_dir).exists():
+            for sub in plugin_root.iterdir():
+                if sub.is_dir() and (sub / "plugin.py").exists():
+                    pkg_dir = sub.name
+                    break
+
+        dockerfile_content = f"""FROM {base_image}
+
+USER root
+
+# Inyectar el plugin dentro del directorio /app/plugins del agente
+COPY {pkg_dir} /app/plugins/{plugin_name}
+COPY pyproject.toml* /app/plugins/{plugin_name}/
+RUN if [ -f /app/plugins/{plugin_name}/pyproject.toml ]; then pip install --no-cache-dir /app/plugins/{plugin_name}; fi
+RUN chown -R appuser:appgroup /app/plugins/{plugin_name}
+
+USER appuser
+"""
+        dockerfile_path = plugin_root / ".Dockerfile.tmp"
+        dockerfile_path.write_text(dockerfile_content, encoding="utf-8")
+        temp_dockerfile = True
+
+    try:
+        cmd_build = ["docker", "build", "-t", raw_tag, "-f", str(dockerfile_path), str(plugin_root)]
+        print(f"▶ Ejecutando: {' '.join(cmd_build)}")
+        res = subprocess.run(cmd_build, cwd=plugin_root)
+        if res.returncode != 0:
+            print(f"❌ Error al construir la imagen Docker (código {res.returncode}).", file=sys.stderr)
+            return res.returncode
+
+        print(f"✓ Imagen construida con éxito: {raw_tag}")
+
+        should_push = getattr(args, "push", False)
+        if should_push:
+            print(f"🚀 Publicando imagen en registro remoto: {raw_tag}...")
+            res_push = subprocess.run(["docker", "push", raw_tag], cwd=plugin_root)
+            if res_push.returncode != 0:
+                print(f"❌ Error al publicar la imagen en el registro (código {res_push.returncode}).", file=sys.stderr)
+                return res_push.returncode
+
+            ci_branch = os.environ.get("CI_COMMIT_BRANCH")
+            ci_default = os.environ.get("CI_DEFAULT_BRANCH", "main")
+            if ci_branch and (ci_branch == ci_default or ci_branch == "main") and not raw_tag.endswith(":latest"):
+                base_name = raw_tag.split(":")[0]
+                latest_tag = f"{base_name}:latest"
+                print(f"🏷️ Etiquetando y publicando también como {latest_tag}...")
+                subprocess.run(["docker", "tag", raw_tag, latest_tag], cwd=plugin_root, check=True)
+                subprocess.run(["docker", "push", latest_tag], cwd=plugin_root)
+
+    finally:
+        if temp_dockerfile and dockerfile_path.exists():
+            dockerfile_path.unlink()
+
+    print("=" * 65)
+    print(f"🎉 ¡Empaquetado Docker de '{plugin_name}' completado con éxito!")
+    print("=" * 65)
+    return 0
+
+
 def handle_test(args: argparse.Namespace) -> int:
     """Ejecuta la suite de pruebas del plugin usando pytest dentro del entorno virtual."""
     pytest_args = getattr(args, "pytest_args", [])
@@ -1754,6 +1862,35 @@ def main(argv: list[str] | None = None) -> int:
             help="Directorio plugins/ de destino del agente (autodetectado si se omite).",
         )
 
+    def _configure_build_args(target_parser: argparse.ArgumentParser) -> None:
+        target_parser.add_argument(
+            "path",
+            nargs="?",
+            type=Path,
+            default=None,
+            help="Ruta opcional al directorio raíz del plugin (por defecto: directorio actual).",
+        )
+        target_parser.add_argument(
+            "-t",
+            "--tag",
+            dest="tag",
+            type=str,
+            default=None,
+            help="Tag o nombre de la imagen Docker a construir (por defecto: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG o autodetectado).",
+        )
+        target_parser.add_argument(
+            "--base-image",
+            dest="base_image",
+            type=str,
+            default="registry.gitlab.com/javiergalvez-ia/jg_agente:latest",
+            help="Imagen base del agente cognitivo (por defecto: registry.gitlab.com/javiergalvez-ia/jg_agente:latest).",
+        )
+        target_parser.add_argument(
+            "--push",
+            action="store_true",
+            help="Publica la imagen en el registro Docker remoto tras compilarla.",
+        )
+
     # 1. Subcomando 'plugin' con operaciones de plugin
     plugin_parser = subparsers.add_parser(
         "plugin",
@@ -1781,6 +1918,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     _configure_unlink_args(plugin_unlink_parser)
 
+    plugin_build_parser = plugin_subparsers.add_parser(
+        "build",
+        help="Construye la imagen Docker del plugin empaquetada junto a jg_agente.",
+    )
+    _configure_build_args(plugin_build_parser)
+
     # 2. Alias directos para conveniencia rápida
     init_parser = subparsers.add_parser(
         "init",
@@ -1799,6 +1942,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Alias directo de 'jg plugin unlink'.",
     )
     _configure_unlink_args(unlink_parser)
+
+    build_parser = subparsers.add_parser(
+        "build",
+        help="Alias directo de 'jg plugin build'.",
+    )
+    _configure_build_args(build_parser)
 
     # 3. Subcomando 'install'
     subparsers.add_parser(
@@ -1932,6 +2081,11 @@ def main(argv: list[str] | None = None) -> int:
         if raw_cmd and raw_cmd[0] == "--":
             raw_cmd = raw_cmd[1:]
         return handle_dev(raw_cmd)
+
+    if args.subcommand == "build" or (
+        args.subcommand == "plugin" and getattr(args, "plugin_subcommand", None) == "build"
+    ):
+        return handle_build(args)
 
     if args.subcommand == "run":
         return handle_run(args)
