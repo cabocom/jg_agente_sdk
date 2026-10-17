@@ -1242,6 +1242,9 @@ def handle_build(args: argparse.Namespace) -> int:
         if not plugin_name:
             plugin_name = plugin_root.name
 
+    if plugin_name:
+        plugin_name = _sanitize_name(plugin_name)
+
     if (
         not plugin_name.startswith("jg_plugin_")
         and (plugin_root / f"jg_plugin_{plugin_name}").exists()
