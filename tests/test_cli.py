@@ -554,3 +554,69 @@ def test_cli_main_build(
     build_args = mock_run.call_args_list[0][0][0]
     assert "build" in build_args
     assert "registry.gitlab.com/javiergalvez-ia/jg_plugin_test:latest" in build_args
+
+
+def test_cli_clean_and_contextual_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    """Verifica el ciclo de vida de 'jg status' contextual y 'jg clean'."""
+    import subprocess
+    from unittest.mock import MagicMock
+
+    # Crear plugin de prueba
+    plugin_dir = tmp_path / "jg_plugin_mockclean"
+    plugin_dir.mkdir()
+    (plugin_dir / "pyproject.toml").write_text(
+        '[project]\nname = "jg-plugin-mockclean"\n[project.entry-points."jg_agente.plugins"]\nmockclean = "jg_plugin_mockclean.plugin:MockPlugin"\n',
+        encoding="utf-8",
+    )
+    pkg = plugin_dir / "jg_plugin_mockclean"
+    pkg.mkdir()
+    (pkg / "plugin.py").write_text("class MockPlugin: pass\n", encoding="utf-8")
+    (plugin_dir / "docker-compose.yml").write_text(
+        "services:\n  test:\n    image: alpine\n", encoding="utf-8"
+    )
+
+    # Crear cachés temporales y venv ficticio
+    cache_dir = plugin_dir / "__pycache__"
+    cache_dir.mkdir()
+    (cache_dir / "mock.pyc").write_text("dummy", encoding="utf-8")
+    venv_dir = plugin_dir / ".venv"
+    venv_dir.mkdir()
+    (venv_dir / "pyvenv.cfg").write_text("home = /usr", encoding="utf-8")
+
+    agent_plugins = tmp_path / "agent" / "plugins"
+    agent_plugins.mkdir(parents=True)
+    symlink_dest = agent_plugins / "jg_plugin_mockclean"
+    symlink_dest.symlink_to(pkg, target_is_directory=True)
+
+    # 1. Probar status contextual dentro del plugin
+    monkeypatch.chdir(plugin_dir)
+    ret_status = main(["status", "-t", str(agent_plugins)])
+    assert ret_status == 0
+    captured_status = capsys.readouterr()
+    assert "Estado del Plugin: jg_plugin_mockclean" in captured_status.out
+    assert "Modo Arquitectónico:   Autónomo" in captured_status.out
+    assert "Enlace en jg_agente:    ACTIVO" in captured_status.out
+
+    # 2. Probar clean con mock de subprocess para docker compose down y docker rm
+    mock_run = MagicMock()
+    mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+    monkeypatch.setattr(subprocess, "run", mock_run)
+
+    ret_clean = main(["clean", "--all", "-t", str(agent_plugins)])
+    assert ret_clean == 0
+    captured_clean = capsys.readouterr()
+    assert "Limpieza de Recursos y Enlaces: jg_plugin_mockclean" in captured_clean.out
+    assert "desvinculado con éxito" in captured_clean.out
+    assert "Cachés temporales purgadas" in captured_clean.out
+    assert "Entorno virtual .venv eliminado" in captured_clean.out
+    assert not symlink_dest.exists()
+    assert not venv_dir.exists()
+    assert not cache_dir.exists()
+
+    # 3. Tras clean, status debe indicar ESTADO LIMPIO
+    ret_status_after = main(["status", "-t", str(agent_plugins)])
+    assert ret_status_after == 0
+    captured_status_after = capsys.readouterr()
+    assert "ESTADO LIMPIO" in captured_status_after.out

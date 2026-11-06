@@ -81,3 +81,37 @@ jg plugin unlink [OPCIONES] NOMBRE_PLUGIN
 
 Elimina de forma segura el enlace simbólico del directorio del agente sin alterar el código fuente del plugin externo. Protege directorios reales que no sean symlinks impidiendo borrados accidentales de código.
 
+---
+
+## 5. Inspección Contextual de Salud (`status`)
+
+```bash
+jg status [OPCIONES]
+```
+
+### Opciones:
+- `-g`, `--global`: Fuerza la inspección global del ecosistema completo (`jg_hub`, `jg_dashboard`, agentes y bases de datos), incluso cuando se ejecuta dentro de la carpeta de un plugin.
+- `-t`, `--target-dir RUTA`: Directorio del agente para comprobar enlaces simbólicos.
+
+### Comportamiento Contextual:
+- **Dentro de la carpeta de un plugin:** Inspecciona exclusivamente el plugin actual (modo autónomo o compartido, contenedores Docker levantados, symlinks en agentes, endpoint HTTP de salud y diagnóstico de si es seguro borrarlo).
+- **En la raíz del workspace o fuera de plugins:** Inspecciona todos los servicios, runtimes y puertos de la plataforma.
+
+---
+
+## 6. Limpieza y Desmantelamiento Seguro (`clean`)
+
+```bash
+jg clean [OPCIONES] [NOMBRE_PLUGIN]
+# O alternativamente:
+jg plugin clean [OPCIONES] [NOMBRE_PLUGIN]
+```
+
+### Opciones:
+- `NOMBRE_PLUGIN`: Nombre o ruta del plugin a limpiar. Si se omite, se autodetecta el plugin del directorio actual.
+- `-a`, `--all`: Elimina también el entorno virtual `.venv` además de cachés y contenedores.
+- `-t`, `--target-dir RUTA`: Directorio de plugins del agente donde eliminar enlaces simbólicos.
+- `-f`, `--force`: Fuerza la detención y borrado de contenedores y enlaces sin confirmación.
+
+Detiene de forma determinista el stack Docker Compose autónomo, elimina contenedores Docker huérfanos o asociados, retira symlinks en agentes y purga cachés, garantizando que la carpeta pueda borrarse o archivarse sin dejar recursos residuales en el sistema.
+

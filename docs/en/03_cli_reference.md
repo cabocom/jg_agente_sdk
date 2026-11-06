@@ -61,3 +61,31 @@ jg link ./my_custom_plugin --agent-dir ../jg_agente
 # Unlink when done
 jg unlink my_custom_plugin --agent-dir ../jg_agente
 ```
+
+---
+
+## 5. Contextual Status Inspection (`status`)
+
+```bash
+jg status [OPTIONS]
+```
+
+### Options:
+- `-g`, `--global`: Force inspection of the global ecosystem even when inside a plugin directory.
+- `-t`, `--target-dir PATH`: Target agent plugins directory.
+
+---
+
+## 6. Safe Teardown and Cleanup (`clean`)
+
+```bash
+jg clean [OPTIONS] [PLUGIN_NAME]
+# Or alternatively:
+jg plugin clean [OPTIONS] [PLUGIN_NAME]
+```
+
+### Options:
+- `PLUGIN_NAME`: Target plugin name or path (auto-detected if omitted).
+- `-a`, `--all`: Also remove `.venv` virtual environment.
+- `-t`, `--target-dir PATH`: Target agent plugins directory.
+- `-f`, `--force`: Force stopping and deletion without prompt.

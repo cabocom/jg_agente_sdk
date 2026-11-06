@@ -14,6 +14,7 @@ La documentación técnica del SDK está organizada por directorios de idioma (I
   - [03. Referencia de Línea de Comandos (`jg`)](es/03_cli_reference.md)
   - [04. Testing y Harness de Desarrollo](es/04_testing_mock_runner.md)
   - [05. Despliegue Local y Ejecución con `jg_agente`](es/05_running_with_jg_agente.md)
+  - [06. Modos de Trabajo y Ciclo de Vida de Plugins](es/06_plugin_modes_and_lifecycle.md)
 
 - 🇬🇧 **[English (International Reference)](en/)**:
   - [01. Quickstart Guide](en/01_quickstart.md)
@@ -21,6 +22,7 @@ La documentación técnica del SDK está organizada por directorios de idioma (I
   - [03. CLI Reference (`jg`)](en/03_cli_reference.md)
   - [04. Testing & Mock Runner](en/04_testing_mock_runner.md)
   - [05. Local Deployment & Execution with `jg_agente`](en/05_running_with_jg_agente.md)
+  - [06. Plugin Modes and Lifecycle](en/06_plugin_modes_and_lifecycle.md)
 
 ---
 

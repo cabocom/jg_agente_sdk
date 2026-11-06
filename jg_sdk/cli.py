@@ -17,6 +17,7 @@ import argparse
 import contextlib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -1012,8 +1013,118 @@ ADMIN_DEFAULT_PASSWORD=admin123456
     return out_dir
 
 
+def _detect_plugin_info(start_path: Path | None = None) -> tuple[bool, Path | None, str, str]:
+    """Detecta si una ruta corresponde a un plugin del ecosistema jg_agente.
+
+    Retorna:
+        tuple[is_plugin, plugin_root, plugin_name, raw_slug]
+    """
+    curr = (start_path or Path.cwd()).resolve()
+    candidates = [curr, *curr.parents]
+
+    for candidate in candidates:
+        if candidate.name in (
+            "jg_agente_sdk",
+            "jg_agente",
+            "jg_hub",
+            "jg_dashboard",
+            "jg_filmmaker",
+        ):
+            continue
+
+        is_plugin = False
+        pkg_name = ""
+
+        # 1. Por convención de nombre de directorio
+        if candidate.name.startswith("jg_plugin_"):
+            is_plugin = True
+            pkg_name = candidate.name
+
+        # 2. Por pyproject.toml con entrypoint de plugins o nombre del paquete
+        pyproject = candidate / "pyproject.toml"
+        if pyproject.is_file():
+            try:
+                content = pyproject.read_text(encoding="utf-8", errors="ignore")
+                for line in content.splitlines():
+                    cleaned_line = line.strip()
+                    if cleaned_line.startswith(
+                        '[project.entry-points."jg_agente.plugins"]'
+                    ) or cleaned_line.startswith("[project.entry-points.'jg_agente.plugins']"):
+                        is_plugin = True
+                    if (
+                        cleaned_line.startswith("name =") or cleaned_line.startswith("name=")
+                    ) and not pkg_name:
+                        val = cleaned_line.split("=")[1].strip().strip('"').strip("'")
+                        if val.startswith("jg-plugin-") or val.startswith("jg_plugin_"):
+                            is_plugin = True
+                            pkg_name = val.replace("-", "_")
+            except Exception:
+                pass
+
+        # 3. Por presencia de plugin.py en subcarpeta
+        if not is_plugin and candidate.is_dir():
+            try:
+                for child in candidate.iterdir():
+                    if child.is_dir() and (child / "plugin.py").is_file():
+                        is_plugin = True
+                        if not pkg_name:
+                            pkg_name = child.name
+                        break
+            except Exception:
+                pass
+
+        if is_plugin:
+            if not pkg_name:
+                pkg_name = candidate.name
+            pkg_name = _sanitize_name(pkg_name)
+            if (
+                not pkg_name.startswith("jg_plugin_")
+                and (candidate / f"jg_plugin_{pkg_name}").exists()
+            ):
+                pkg_name = f"jg_plugin_{pkg_name}"
+            raw_slug = (
+                pkg_name[len("jg_plugin_") :] if pkg_name.startswith("jg_plugin_") else pkg_name
+            )
+            return True, candidate, pkg_name, raw_slug
+
+    return False, None, "", ""
+
+
+def _find_matching_containers(raw_slug: str, plugin_name: str) -> list[str]:
+    """Busca contenedores Docker asociados determinísticamente a un plugin o agente."""
+    try:
+        res = subprocess.run(
+            ["docker", "ps", "-a", "--format", "{{.Names}}"],
+            capture_output=True,
+            text=True,
+        )
+        if res.returncode != 0:
+            return []
+        matched: list[str] = []
+        for line in res.stdout.strip().splitlines():
+            name = line.strip()
+            if not name:
+                continue
+            if (
+                name == f"jg_agente_{raw_slug}"
+                or name == f"jg_dashboard_{raw_slug}"
+                or name == f"jg_agente_postgres_{raw_slug}"
+                or name == f"jg_dashboard_postgres_{raw_slug}"
+                or name.endswith(f"_{raw_slug}")
+                or name == plugin_name
+                or name == f"jg_{raw_slug}"
+            ) and name not in matched:
+                matched.append(name)
+        return matched
+    except Exception:
+        return []
+
+
 def _find_plugin_root() -> Path:
     """Busca la raíz del plugin buscando pyproject.toml o install.sh desde el directorio actual hacia arriba."""
+    is_p, root_p, _, _ = _detect_plugin_info(Path.cwd())
+    if is_p and root_p is not None:
+        return root_p
     curr = Path.cwd().resolve()
     for parent in [curr, *curr.parents]:
         if (parent / "pyproject.toml").is_file() or (parent / "install.sh").is_file():
@@ -1452,14 +1563,149 @@ def handle_reload(args: argparse.Namespace) -> int:
     return 0
 
 
-def handle_status(args: argparse.Namespace) -> int:
-    """Inspecciona la salud y capacidades de los servicios del ecosistema."""
+def _handle_plugin_status(
+    plugin_root: Path,
+    plugin_name: str,
+    raw_slug: str,
+    args: argparse.Namespace,
+) -> int:
+    """Muestra el estado detallado de un plugin específico."""
+    print("=" * 65)
+    print(f"🔌 Estado del Plugin: {plugin_name} ({raw_slug})")
+    print(f"📁 Directorio: {plugin_root}")
+    print("=" * 65)
+
+    # 1. Modo arquitectónico
+    has_compose = any(
+        (plugin_root / f).is_file()
+        for f in ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]
+    )
+    if has_compose:
+        print("  🏗️  Modo Arquitectónico:   Autónomo (docker-compose.yml propio)")
+    else:
+        print("  🏗️  Modo Arquitectónico:   Compartido / Integrado (montaje en runtime jg_agente)")
+
+    # 2. Enlace simbólico en jg_agente
+    target_plugins = resolve_target_plugins_dir(getattr(args, "target", None))
+    symlink_found: tuple[Path, str] | None = None
+    for cand in [plugin_name, raw_slug, f"jg_plugin_{raw_slug}"]:
+        p = target_plugins / cand
+        if p.is_symlink():
+            try:
+                symlink_found = (p, str(p.readlink()))
+            except Exception:
+                symlink_found = (p, str(p.resolve()))
+            break
+
+    if symlink_found:
+        print(f"  🔗 Enlace en jg_agente:    ACTIVO -> {symlink_found[0]} ({symlink_found[1]})")
+    else:
+        print(f"  ⚪ Enlace en jg_agente:    No vinculado en {target_plugins.name}/")
+
+    # 3. Contenedores Docker asociados
+    containers = _find_matching_containers(raw_slug, plugin_name)
+    running_containers: list[str] = []
+    if containers:
+        print(f"  🐳 Contenedores Docker asociados ({len(containers)}):")
+        res_ps = subprocess.run(
+            ["docker", "ps", "-a", "--format", "{{.Names}}\t{{.Status}}\t{{.Ports}}"],
+            capture_output=True,
+            text=True,
+        )
+        c_map: dict[str, tuple[str, str]] = {}
+        for line in res_ps.stdout.strip().splitlines():
+            parts = line.split("\t")
+            if parts:
+                c_map[parts[0]] = (
+                    parts[1] if len(parts) > 1 else "",
+                    parts[2] if len(parts) > 2 else "",
+                )
+
+        for c in containers:
+            status, ports = c_map.get(c, ("Desconocido", ""))
+            ports_display = f" | {ports}" if ports else ""
+            if "Up" in status:
+                running_containers.append(c)
+                print(f"     ✅ {c:<30} {status}{ports_display}")
+            else:
+                print(f"     ⚪ {c:<30} {status}{ports_display}")
+    else:
+        print("  ⚪ Contenedores Docker:    Ninguno activo (stack apagado)")
+
+    # 4. Salud HTTP y capacidades del agente
+    known_ports = {
+        "devops": 8922,
+        "conversacional": 8921,
+        "sales": 8873,
+        "datosgob": 8881,
+    }
+    candidate_port = known_ports.get(raw_slug, 8881)
+
+    for c in running_containers:
+        try:
+            res_port = subprocess.run(["docker", "port", c, "8000"], capture_output=True, text=True)
+            if res_port.returncode == 0 and res_port.stdout.strip():
+                candidate_port = int(res_port.stdout.strip().split(":")[-1])
+                break
+        except Exception:
+            pass
+
+    try:
+        r = httpx.get(f"http://localhost:{candidate_port}/health", timeout=1.5)
+        if r.status_code == 200:
+            print(
+                f"  ✅ Runtime API:            ONLINE  (http://localhost:{candidate_port}/health)"
+            )
+            try:
+                cr = httpx.get(f"http://localhost:{candidate_port}/capabilities", timeout=1.5)
+                if cr.status_code == 200:
+                    cd = cr.json()
+                    p_cnt = cd.get("plugins_count", 0)
+                    t_cnt = cd.get("tools_count", 0)
+                    e_cnt = cd.get("engines_count", 0)
+                    print(
+                        f"     └─► Capacidades: {p_cnt} plugins | {t_cnt} tools | {e_cnt} engines"
+                    )
+            except Exception:
+                pass
+        else:
+            print(
+                f"  ⚠️  Runtime API:            HTTP {r.status_code} (http://localhost:{candidate_port}/health)"
+            )
+    except Exception:
+        print(f"  ⚪ Runtime API:            OFFLINE (puerto {candidate_port})")
+
+    # 5. Entorno local
+    venv_ok = (plugin_root / ".venv").is_dir()
+    tests_ok = (plugin_root / "tests").is_dir()
+    print(f"  📦 Entorno Virtual (.venv): {'Presente' if venv_ok else 'Ausente'}")
+    print(f"  🧪 Suite de Tests:         {'Presente (tests/)' if tests_ok else 'No encontrada'}")
+
+    # 6. Diagnóstico para el desarrollador
+    print("-" * 65)
+    if not running_containers and not symlink_found:
+        print("  🟢 ESTADO LIMPIO: El plugin no tiene contenedores activos ni enlaces.")
+        print("     Esta carpeta se puede archivar en Git o borrar con seguridad:")
+        print(f"     rm -rf {plugin_root}")
+    else:
+        print("  🟠 RECURSOS EN USO: Hay contenedores o enlaces activos.")
+        print("     Para desmantelarlos antes de borrar la carpeta, ejecuta:")
+        print("     jg clean")
+    print("=" * 65)
+    return 0
+
+
+def _handle_global_status(args: argparse.Namespace) -> int:
+    """Muestra el estado global de todos los servicios del ecosistema."""
     services = [
-        ("Dashboard (Control Plane)", "http://localhost:8080/up", "web", 8080),
-        ("Dashboard Autónomo", "http://localhost:8880/up", "web", 8880),
-        ("Agente Conversacional", "http://localhost:8001/health", "agent", 8001),
-        ("Agente DevOps", "http://localhost:8002/health", "agent", 8002),
-        ("Agente Datos Gob", "http://localhost:8881/health", "agent", 8881),
+        ("Portal & Docs (jg_hub)", "http://localhost:8930/up", "web", 8930),
+        ("Dashboard (Control Plane)", "http://localhost:8003/up", "web", 8003),
+        ("Agente Conversacional", "http://localhost:8921/health", "agent", 8921),
+        ("Agente DevOps", "http://localhost:8922/health", "agent", 8922),
+        ("Agente Sales", "http://localhost:8873/health", "agent", 8873),
+        ("Filmmaker Web", "http://localhost:8010/up", "web", 8010),
+        ("Dashboard Autónomo (Plugins)", "http://localhost:8880/up", "web", 8880),
+        ("Agente Autónomo (Plugins)", "http://localhost:8881/health", "agent", 8881),
     ]
 
     print("=" * 65)
@@ -1498,21 +1744,161 @@ def handle_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_status(args: argparse.Namespace) -> int:
+    """Inspecciona la salud y capacidades de un plugin específico o del ecosistema completo."""
+    is_global = getattr(args, "is_global", False)
+
+    if not is_global:
+        is_plugin, plugin_root, plugin_name, raw_slug = _detect_plugin_info(Path.cwd())
+        if is_plugin and plugin_root is not None:
+            return _handle_plugin_status(plugin_root, plugin_name, raw_slug, args)
+
+    return _handle_global_status(args)
+
+
+def handle_clean(args: argparse.Namespace) -> int:
+    """Detiene y elimina contenedores autónomos o dedicados, desvincula symlinks en agentes y purga cachés."""
+    raw_name = getattr(args, "name", None)
+    all_flag = getattr(args, "all", False)
+    target_dir = getattr(args, "target", None)
+
+    is_plugin, plugin_root, plugin_name, raw_slug = False, None, "", ""
+
+    if raw_name:
+        candidate_path = Path(raw_name).resolve()
+        if candidate_path.is_dir():
+            is_plugin, plugin_root, plugin_name, raw_slug = _detect_plugin_info(candidate_path)
+        if not is_plugin:
+            for p in [Path.cwd(), *Path.cwd().parents]:
+                for candidate in [p / raw_name, p / f"jg_plugin_{raw_name}"]:
+                    if candidate.is_dir():
+                        is_plugin, plugin_root, plugin_name, raw_slug = _detect_plugin_info(
+                            candidate
+                        )
+                        if is_plugin:
+                            break
+                if is_plugin:
+                    break
+
+        if not is_plugin:
+            raw_slug = (
+                raw_name[len("jg_plugin_") :] if raw_name.startswith("jg_plugin_") else raw_name
+            )
+            plugin_name = raw_name if raw_name.startswith("jg_plugin_") else f"jg_plugin_{raw_name}"
+            plugin_root = None
+            is_plugin = True
+    else:
+        is_plugin, plugin_root, plugin_name, raw_slug = _detect_plugin_info(Path.cwd())
+
+    if not is_plugin or not plugin_name:
+        print(
+            "❌ No se detectó ningún plugin en el directorio actual.\n"
+            "   Especifica el nombre del plugin (ej. 'jg clean devops') o ejecuta el comando desde su directorio.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print("=" * 65)
+    print(f"🧹 Limpieza de Recursos y Enlaces: {plugin_name} ({raw_slug})")
+    print("=" * 65)
+
+    # 1. Detener Docker Compose autónomo (si existe compose local)
+    if plugin_root and plugin_root.is_dir():
+        compose_file = None
+        for candidate in [
+            "docker-compose.yml",
+            "docker-compose.yaml",
+            "compose.yml",
+            "compose.yaml",
+        ]:
+            p = plugin_root / candidate
+            if p.is_file():
+                compose_file = p
+                break
+        if compose_file:
+            print(f"🛑 Deteniendo stack Docker Compose autónomo ({compose_file.name})...")
+            cmd_down = ["docker", "compose", "-f", str(compose_file), "down"]
+            if all_flag:
+                cmd_down.append("--volumes")
+            res_down = subprocess.run(cmd_down, cwd=plugin_root, capture_output=True, text=True)
+            if res_down.returncode == 0:
+                print("   ✅ Stack Docker Compose autónomo detenido y eliminado.")
+            else:
+                msg = res_down.stderr.strip() or res_down.stdout.strip()
+                if msg:
+                    print(f"   ℹ️  Docker Compose: {msg}")
+
+    # 2. Detectar y eliminar contenedores Docker asociados en el sistema
+    matched_containers = _find_matching_containers(raw_slug, plugin_name)
+    if matched_containers:
+        print(f"🐳 Contenedores Docker asociados detectados ({len(matched_containers)}):")
+        for c in matched_containers:
+            print(f"   • Deteniendo y eliminando '{c}'...")
+            subprocess.run(["docker", "rm", "-f", c], capture_output=True)
+            print(f"     ✓ Contenedor '{c}' eliminado.")
+    else:
+        print("🐳 Contenedores Docker: Ninguno asociado en ejecución.")
+
+    # 3. Desvincular enlace simbólico en agente (Modo Compartido)
+    target_plugins = resolve_target_plugins_dir(target_dir)
+    unlinked_any = False
+    for candidate_name in [plugin_name, raw_slug, f"jg_plugin_{raw_slug}"]:
+        cand_path = target_plugins / candidate_name
+        if cand_path.is_symlink():
+            try:
+                cand_path.unlink()
+                print(
+                    f"🔗 Enlace simbólico '{candidate_name}' desvinculado con éxito de: {target_plugins}"
+                )
+                unlinked_any = True
+            except Exception as exc:
+                print(f"   ⚠️  Fallo al desvincular '{candidate_name}': {exc}")
+        elif cand_path.exists() and cand_path.is_dir():
+            print(
+                f"   ⚠️  '{cand_path}' es un directorio real y no un symlink. No se elimina por seguridad."
+            )
+
+    if not unlinked_any:
+        print(f"🔗 Enlaces en jg_agente: Ninguno activo en {target_plugins.name}/.")
+
+    # 4. Limpieza de cachés y artefactos locales
+    if plugin_root and plugin_root.is_dir():
+        for root_walk, dirs, _ in os.walk(plugin_root):
+            for d in list(dirs):
+                if d in ("__pycache__", ".pytest_cache", ".ruff_cache") or d.endswith(".egg-info"):
+                    target_d = Path(root_walk) / d
+                    shutil.rmtree(target_d, ignore_errors=True)
+        if all_flag:
+            venv_path = plugin_root / ".venv"
+            if venv_path.is_dir():
+                shutil.rmtree(venv_path, ignore_errors=True)
+                print("   🧹 Entorno virtual .venv eliminado.")
+
+        print("   🧹 Cachés temporales purgadas (__pycache__, pytest, ruff).")
+
+    print("\n" + "=" * 65)
+    print(f"✨ Plugin '{plugin_name}' limpiado con éxito.")
+    print("📁 El plugin no tiene procesos activos ni enlaces vinculados en el agente.")
+    if plugin_root:
+        print("ℹ️  Ahora puedes archivar en Git o eliminar esta carpeta sin riesgo:")
+        print(f"   rm -rf {plugin_root}")
+    print("=" * 65)
+    return 0
+
+
 def resolve_target_plugins_dir(explicit_target: Path | str | None = None) -> Path:
     """Resuelve la ruta al directorio plugins/ del agente."""
     if explicit_target is not None:
         return Path(explicit_target).resolve()
 
-    cwd = Path.cwd()
-    candidates = [
-        cwd / "plugins",
-        cwd / "jg_agente" / "plugins",
-        cwd.parent / "jg_agente" / "plugins",
-        cwd.parent / "plugins",
-    ]
-    for c in candidates:
-        if c.is_dir():
-            return c.resolve()
+    cwd = Path.cwd().resolve()
+    for parent in [cwd, *cwd.parents]:
+        for candidate in [
+            parent / "jg_agente" / "plugins",
+            parent / "plugins",
+        ]:
+            if candidate.is_dir():
+                return candidate.resolve()
 
     return (cwd / "plugins").resolve()
 
@@ -1791,7 +2177,7 @@ def main(argv: list[str] | None = None) -> int:
         prog=prog_name,
         description="CLI para desarrollo y scaffolding de plugins en la plataforma jg_agente.",
     )
-    parser.add_argument("--version", action="version", version=f"{prog_name} 1.0.0")
+    parser.add_argument("--version", action="version", version=f"{prog_name} 1.1.0")
 
     subparsers = parser.add_subparsers(dest="subcommand", help="Comandos disponibles")
 
@@ -1878,6 +2264,36 @@ def main(argv: list[str] | None = None) -> int:
             help="Directorio plugins/ de destino del agente (autodetectado si se omite).",
         )
 
+    def _configure_clean_args(target_parser: argparse.ArgumentParser) -> None:
+        target_parser.add_argument(
+            "name",
+            nargs="?",
+            type=str,
+            default=None,
+            help="Nombre o ruta del plugin a limpiar (ej. 'devops' o 'jg_plugin_devops'). Autodetectado si se omite.",
+        )
+        target_parser.add_argument(
+            "-a",
+            "--all",
+            action="store_true",
+            help="Elimina también el entorno virtual (.venv) además de cachés y contenedores.",
+        )
+        target_parser.add_argument(
+            "-t",
+            "--target",
+            "--target-dir",
+            dest="target",
+            type=Path,
+            default=None,
+            help="Directorio plugins/ del agente donde desvincular enlaces simbólicos.",
+        )
+        target_parser.add_argument(
+            "-f",
+            "--force",
+            action="store_true",
+            help="Fuerza la detención y borrado de contenedores y enlaces sin confirmación.",
+        )
+
     def _configure_build_args(target_parser: argparse.ArgumentParser) -> None:
         target_parser.add_argument(
             "path",
@@ -1934,6 +2350,33 @@ def main(argv: list[str] | None = None) -> int:
     )
     _configure_unlink_args(plugin_unlink_parser)
 
+    plugin_clean_parser = plugin_subparsers.add_parser(
+        "clean",
+        help="Detiene contenedores autónomos o dedicados, desvincula symlinks en agentes y purga cachés.",
+    )
+    _configure_clean_args(plugin_clean_parser)
+
+    plugin_status_parser = plugin_subparsers.add_parser(
+        "status",
+        help="Inspecciona el estado de salud y capacidades de un plugin específico o del ecosistema completo.",
+    )
+    plugin_status_parser.add_argument(
+        "-g",
+        "--global",
+        dest="is_global",
+        action="store_true",
+        help="Fuerza la inspección global del ecosistema completo.",
+    )
+    plugin_status_parser.add_argument(
+        "-t",
+        "--target",
+        "--target-dir",
+        dest="target",
+        type=Path,
+        default=None,
+        help="Directorio plugins/ del agente donde comprobar enlaces simbólicos.",
+    )
+
     plugin_build_parser = plugin_subparsers.add_parser(
         "build",
         help="Construye la imagen Docker del plugin empaquetada junto a jg_agente.",
@@ -1958,6 +2401,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Alias directo de 'jg plugin unlink'.",
     )
     _configure_unlink_args(unlink_parser)
+
+    clean_parser = subparsers.add_parser(
+        "clean",
+        help="Alias directo de 'jg plugin clean'.",
+    )
+    _configure_clean_args(clean_parser)
 
     build_parser = subparsers.add_parser(
         "build",
@@ -2067,12 +2516,31 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # 7. Subcomando 'status'
-    subparsers.add_parser(
+    status_parser = subparsers.add_parser(
         "status",
-        help="Inspecciona el estado de salud y capacidades de los agentes y dashboard.",
+        help="Inspecciona el estado de salud y capacidades de un plugin específico o del ecosistema completo.",
+    )
+    status_parser.add_argument(
+        "-g",
+        "--global",
+        dest="is_global",
+        action="store_true",
+        help="Fuerza la inspección global del ecosistema completo aunque se ejecute dentro de un plugin.",
+    )
+    status_parser.add_argument(
+        "-t",
+        "--target",
+        "--target-dir",
+        dest="target",
+        type=Path,
+        default=None,
+        help="Directorio plugins/ del agente donde comprobar enlaces simbólicos.",
     )
 
-    # 8. Subcomando 'test'
+    # 8. Subcomando 'clean'
+    # Configurado anteriormente vía alias y plugin clean
+
+    # 9. Subcomando 'test'
     test_parser = subparsers.add_parser(
         "test",
         help="Ejecuta la suite de pruebas unitarias del plugin usando pytest.",
@@ -2111,8 +2579,15 @@ def main(argv: list[str] | None = None) -> int:
     ):
         return handle_reload(args)
 
-    if args.subcommand == "status":
+    if args.subcommand == "status" or (
+        args.subcommand == "plugin" and getattr(args, "plugin_subcommand", None) == "status"
+    ):
         return handle_status(args)
+
+    if args.subcommand == "clean" or (
+        args.subcommand == "plugin" and getattr(args, "plugin_subcommand", None) == "clean"
+    ):
+        return handle_clean(args)
 
     if args.subcommand == "test":
         return handle_test(args)

@@ -130,25 +130,25 @@ async def test_plugin():
 
 ---
 
-## 6. CLI de Scaffolding (`jg-sdk-cli`)
+## 6. CLI de Desarrollo y Ciclo de Vida (`jg`)
 
-Herramienta de consola para generar nuevos plugins de forma estandarizada:
+Herramienta de consola oficial para generar, vincular, inspeccionar y limpiar plugins:
 
 ```bash
-# Crear un nuevo plugin con plantilla completa
-jg-sdk-cli new network_diagnostics --template full --author "Javier Gálvez"
+# Inicializar un nuevo plugin con plantilla completa
+jg plugin init mi_plugin --template full --author "Javier Gálvez"
 
-# Inspeccionar herramientas de un plugin local
-jg-sdk-cli inspect ./jg_plugin_datosgob
+# Enlazar plugin en desarrollo a un runtime de jg_agente
+jg link
 
-# Validar cumplimiento de contratos
-jg-sdk-cli verify ./jg_plugin_datosgob
+# Inspeccionar estado contextual del plugin (o global con -g)
+jg status
 
-# Enlazar plugin en desarrollo a una instancia de agente (con comprobaciones de seguridad)
-jg link jg_plugin_conversational -t jg_agente/plugins
+# Desmantelar contenedores, desvincular symlinks y purgar cachés de forma limpia
+jg clean
 
-# Desvincular enlace simbólico sin afectar el código fuente
-jg unlink jg_plugin_conversational -t jg_agente/plugins
+# Desvincular enlace simbólico manualmente sin alterar código fuente
+jg unlink mi_plugin
 ```
 
 ---
@@ -157,6 +157,7 @@ jg unlink jg_plugin_conversational -t jg_agente/plugins
 
 Para probar la integración real de un plugin con el motor cognitivo de `jg_agente` en local sin dependencias de infraestructura pesada (PostgreSQL o `jg_dashboard`), consulta la guía completa:
 - **[05. Despliegue Local y Ejecución con `jg_agente`](docs/es/05_running_with_jg_agente.md)** (`en`: [05_running_with_jg_agente.md](docs/en/05_running_with_jg_agente.md))
+- **[06. Modos de Trabajo y Ciclo de Vida de Plugins](docs/es/06_plugin_modes_and_lifecycle.md)** (`en`: [06_plugin_modes_and_lifecycle.md](docs/en/06_plugin_modes_and_lifecycle.md))
 
 Configuración mínima requerida en `.env`:
 ```env
@@ -172,7 +173,7 @@ CHECKPOINTER_BACKEND=memory
 
 ## 8. Verificación de Calidad
 
-La suite del SDK incluye **47 pruebas automatizadas** que validan la serialización de contratos, la firma HMAC y el mock runner:
+La suite del SDK incluye **54 pruebas automatizadas** que validan la serialización de contratos, la firma HMAC, el mock runner, y la gestión de ciclo de vida con la CLI:
 
 ```bash
 pytest tests/
@@ -182,4 +183,10 @@ pytest tests/
 
 ## 9. Licencia
 
-Distribuido bajo [Licencia MIT](LICENSE). Permite el desarrollo e integración de plugins libres o propietarios sin restricciones copyleft.
+Este proyecto está licenciado bajo los términos de la **[Licencia MIT](LICENSE)**.
+
+```text
+MIT License - Copyright (c) 2026 Javier Gálvez
+```
+
+Permite el uso, copia, modificación, distribución, sublicenciamiento e integración tanto en proyectos de código abierto como en desarrollos comerciales y propietarios cerrados, sin restricciones de copyleft.
