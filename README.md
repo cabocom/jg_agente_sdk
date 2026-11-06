@@ -18,10 +18,15 @@ El SDK no contiene ni referencia `langgraph`, `langchain`, checkpointers de base
 Esto permite que cualquier desarrollador u organización cree plugins de especialidad e invoque o pruebe herramientas de forma aislada sin levantar contenedores ni bases de datos.
 
 ### Documentación Técnica Modular
-- [01. Guía Rápida de Inicio](docs/01_quickstart.md) — Instalación, configuración y primer plugin en 5 minutos.
-- [02. Especificación de Contratos y Modelos](docs/02_contracts_spec.md) — `AgentTool`, `ToolResult`, `AgentInput` y `AgentOutput`.
-- [03. Referencia de Línea de Comandos](docs/03_cli_reference.md) — CLI de scaffolding, testing y validación de manifiestos.
-- [04. Testing y Harness de Desarrollo](docs/04_testing_mock_runner.md) — `MockAgentRunner` y simulación sin infraestructura.
+Estructurada en múltiples idiomas bajo [`docs/`](docs/README.md):
+- 🇪🇸 **Español (SSOT):**
+  - [01. Guía Rápida de Inicio](docs/es/01_quickstart.md) — Instalación, configuración y primer plugin en 5 minutos.
+  - [02. Especificación de Contratos y Modelos](docs/es/02_contracts_spec.md) — `AgentTool`, `ToolResult`, `AgentInput` y `AgentOutput`.
+  - [03. Referencia de Línea de Comandos](docs/es/03_cli_reference.md) — CLI de scaffolding, testing y validación de manifiestos.
+  - [04. Testing y Harness de Desarrollo](docs/es/04_testing_mock_runner.md) — `MockAgentRunner` y simulación sin infraestructura.
+  - [05. Despliegue Local con `jg_agente`](docs/es/05_running_with_jg_agente.md) — Variables de entorno mínimas y ejecución.
+- 🇬🇧 **English (Reference):**
+  - [01. Quickstart](docs/en/01_quickstart.md) · [02. Contracts](docs/en/02_contracts_spec.md) · [03. CLI](docs/en/03_cli_reference.md) · [04. Testing](docs/en/04_testing_mock_runner.md) · [05. Running](docs/en/05_running_with_jg_agente.md)
 
 ---
 
@@ -151,7 +156,7 @@ jg unlink jg_plugin_conversational -t jg_agente/plugins
 ## 7. Despliegue Local con `jg_agente` (Variables de Entorno)
 
 Para probar la integración real de un plugin con el motor cognitivo de `jg_agente` en local sin dependencias de infraestructura pesada (PostgreSQL o `jg_dashboard`), consulta la guía completa:
-- **[05. Despliegue Local y Ejecución con `jg_agente`](docs/05_running_with_jg_agente.md)**
+- **[05. Despliegue Local y Ejecución con `jg_agente`](docs/es/05_running_with_jg_agente.md)** (`en`: [05_running_with_jg_agente.md](docs/en/05_running_with_jg_agente.md))
 
 Configuración mínima requerida en `.env`:
 ```env

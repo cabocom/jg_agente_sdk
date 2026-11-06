@@ -9,7 +9,7 @@
 - **Soporte de Internacionalización (i18n):**
   * `AgentInput`: Campo `locale: str = Field(default="es")` para propagar el idioma de la interacción.
   * `PluginMetadata`: Campos `supported_locales: list[str] = Field(default_factory=lambda: ["es"])` y `default_locale: Optional[str] = None` para declarar idiomas nativos del plugin.
-- **Guía de Variables de Entorno del Agente (`docs/05_running_with_jg_agente.md`):** Documentación exhaustiva de las variables mínimas para que un desarrollador de plugins levante un runtime de `jg_agente` en local (`DEFAULT_LOCALE`, `PLUGINS_DIR`, `ENABLED_PLUGINS`, `LLM_PROVIDER`, `REQUIRE_DASHBOARD_REGISTRATION`, `CHECKPOINTER_BACKEND`, etc.).
+- **Guía de Variables de Entorno del Agente (`docs/es/05_running_with_jg_agente.md` / `docs/en/05_running_with_jg_agente.md`):** Documentación exhaustiva de las variables mínimas para que un desarrollador de plugins levante un runtime de `jg_agente` en local (`DEFAULT_LOCALE`, `PLUGINS_DIR`, `ENABLED_PLUGINS`, `LLM_PROVIDER`, `REQUIRE_DASHBOARD_REGISTRATION`, `CHECKPOINTER_BACKEND`, etc.).
 - **Desacoplamiento Absoluto:** Cero dependencias de frameworks pesados (sin LangChain, LangGraph, FastAPI, SQLAlchemy ni bases de datos).
 - **Tipado Estricto (PEP 561):** Incluye marcador `py.typed` para autocompletado y validación estática transparente con MyPy en cualquier consumidor.
 - **Herramienta de Línea de Comandos (`jg` / `jg-sdk`):** CLI integrado para invocación interactiva de agentes, ping de salud, inspección de capacidades, soporte de parámetros descriptivos, scaffolding seguro (`jg plugin init`), alertas de credenciales de desarrollo y saneamiento de BD documentado (`jg run`), ejecución flexible en `.venv` (`jg dev`), vinculación segura de plugins (`jg link` / `jg unlink`) y empaquetado de imágenes Docker inmutables (`jg plugin build` / `jg build`).
@@ -55,9 +55,10 @@ jg_agente_sdk/
 │   ├── models.py           # Modelos de I/O: AgentInput, AgentOutput, UserContext, ExecutionStatus
 │   └── py.typed            # Marcador PEP 561 de tipado estático
 ├── tests/                  # Suite de 53 tests unitarios (CLI, HMAC, contratos, plugins, seguridad)
-├── docs/                   # Documentación técnica, guías de despliegue y resolución de issues
-│   ├── 01_quickstart.md    # Guía rápida de creación de plugins
-│   ├── 05_running_with_jg_agente.md # Variables de entorno y despliegue local de jg_agente
+├── docs/                   # Documentación técnica multilingüe (es/en) y resolución de issues
+│   ├── README.md           # Índice de navegación entre idiomas
+│   ├── es/                 # Documentación canónica en español (SSOT)
+│   ├── en/                 # English technical documentation
 │   └── issues/             # Issues documentados con análisis, walkthrough y cierre
 ├── scripts/
 │   └── check.sh            # Pipeline de verificación (Ruff + Pytest)
