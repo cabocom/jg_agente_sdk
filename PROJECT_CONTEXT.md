@@ -1,11 +1,15 @@
 # CONTEXTO DE PROYECTO: jg_agente_sdk
 
-**Versión del documento:** 1.0.1  
-**Fecha de consolidación:** 28 de septiembre de 2026  
+**Versión del documento:** 1.1.0  
+**Fecha de consolidación:** 6 de noviembre de 2026  
 **Componente:** SDK Público de Desarrollo y Biblioteca Cliente (Plugin Development & Execution Client)  
 **Stack Tecnológico:** Python >= 3.11, Pydantic v2, HTTPX, Setuptools, Ruff, Pytest  
 **Estado:** Producción / Consolidado como Fuente Única de Verdad (SSOT).  
 - **Fuente Única de Verdad (SSOT):** Define todos los contratos públicos canónicos del ecosistema (`AgentTool`, `ToolResult`, `RiskLevel`, `ToolType`, `ExecutionStatus`, `BasePlugin`, `BaseEngine`, `PluginMetadata`, `AgentInput`, `AgentOutput`).
+- **Soporte de Internacionalización (i18n):**
+  * `AgentInput`: Campo `locale: str = Field(default="es")` para propagar el idioma de la interacción.
+  * `PluginMetadata`: Campos `supported_locales: list[str] = Field(default_factory=lambda: ["es"])` y `default_locale: Optional[str] = None` para declarar idiomas nativos del plugin.
+- **Guía de Variables de Entorno del Agente (`docs/05_running_with_jg_agente.md`):** Documentación exhaustiva de las variables mínimas para que un desarrollador de plugins levante un runtime de `jg_agente` en local (`DEFAULT_LOCALE`, `PLUGINS_DIR`, `ENABLED_PLUGINS`, `LLM_PROVIDER`, `REQUIRE_DASHBOARD_REGISTRATION`, `CHECKPOINTER_BACKEND`, etc.).
 - **Desacoplamiento Absoluto:** Cero dependencias de frameworks pesados (sin LangChain, LangGraph, FastAPI, SQLAlchemy ni bases de datos).
 - **Tipado Estricto (PEP 561):** Incluye marcador `py.typed` para autocompletado y validación estática transparente con MyPy en cualquier consumidor.
 - **Herramienta de Línea de Comandos (`jg` / `jg-sdk`):** CLI integrado para invocación interactiva de agentes, ping de salud, inspección de capacidades, soporte de parámetros descriptivos, scaffolding seguro (`jg plugin init`), alertas de credenciales de desarrollo y saneamiento de BD documentado (`jg run`), ejecución flexible en `.venv` (`jg dev`), vinculación segura de plugins (`jg link` / `jg unlink`) y empaquetado de imágenes Docker inmutables (`jg plugin build` / `jg build`).
@@ -50,8 +54,10 @@ jg_agente_sdk/
 │   ├── contracts.py        # Contratos canónicos: AgentTool, ToolResult, BasePlugin, RiskLevel
 │   ├── models.py           # Modelos de I/O: AgentInput, AgentOutput, UserContext, ExecutionStatus
 │   └── py.typed            # Marcador PEP 561 de tipado estático
-├── tests/                  # Suite de 52 tests unitarios (CLI, HMAC, contratos, plugins, seguridad)
-├── docs/                   # Documentación técnica, trazabilidad y resolución de issues
+├── tests/                  # Suite de 53 tests unitarios (CLI, HMAC, contratos, plugins, seguridad)
+├── docs/                   # Documentación técnica, guías de despliegue y resolución de issues
+│   ├── 01_quickstart.md    # Guía rápida de creación de plugins
+│   ├── 05_running_with_jg_agente.md # Variables de entorno y despliegue local de jg_agente
 │   └── issues/             # Issues documentados con análisis, walkthrough y cierre
 ├── scripts/
 │   └── check.sh            # Pipeline de verificación (Ruff + Pytest)

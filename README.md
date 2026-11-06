@@ -148,7 +148,24 @@ jg unlink jg_plugin_conversational -t jg_agente/plugins
 
 ---
 
-## 7. Verificación de Calidad
+## 7. Despliegue Local con `jg_agente` (Variables de Entorno)
+
+Para probar la integración real de un plugin con el motor cognitivo de `jg_agente` en local sin dependencias de infraestructura pesada (PostgreSQL o `jg_dashboard`), consulta la guía completa:
+- **[05. Despliegue Local y Ejecución con `jg_agente`](docs/05_running_with_jg_agente.md)**
+
+Configuración mínima requerida en `.env`:
+```env
+DEFAULT_LOCALE=es                 # Idioma del runtime: 'es', 'en', 'fr', 'de', 'it'
+PLUGINS_DIR=.                     # Directorio del plugin
+ENABLED_PLUGINS=mi_plugin         # Nombre del plugin
+LLM_PROVIDER=mock                 # Modo mock determinista sin consumo de API externa
+REQUIRE_DASHBOARD_REGISTRATION=false
+CHECKPOINTER_BACKEND=memory
+```
+
+---
+
+## 8. Verificación de Calidad
 
 La suite del SDK incluye **47 pruebas automatizadas** que validan la serialización de contratos, la firma HMAC y el mock runner:
 
@@ -158,6 +175,6 @@ pytest tests/
 
 ---
 
-## 8. Licencia
+## 9. Licencia
 
 Distribuido bajo [Licencia MIT](LICENSE). Permite el desarrollo e integración de plugins libres o propietarios sin restricciones copyleft.

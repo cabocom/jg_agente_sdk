@@ -172,6 +172,10 @@ class AgentInput(BaseModel):
         default_factory=dict,
         description="Metadatos arbitrarios complementarios de la solicitud.",
     )
+    locale: str = Field(
+        default="es",
+        description="Código de idioma de la ejecución ('es', 'en', 'fr', 'de', 'it').",
+    )
     callback_url: str | None = Field(
         default=None,
         description="URL opcional de webhook HTTP para notificar finalizaciones asíncronas.",

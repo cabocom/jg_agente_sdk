@@ -82,3 +82,20 @@ class NetworkPlugin(BasePlugin):
     def register_engines(self) -> dict[str, BaseEngine]:
         return {}
 ```
+
+---
+
+## 5. Levantar `jg_agente` con tu Plugin
+
+Para probar tu plugin dentro del ciclo cognitivo completo de `jg_agente` en tu entorno local sin infraestructura externa, consulta:
+- **[05. Despliegue Local y Ejecución con `jg_agente`](05_running_with_jg_agente.md)**
+
+Parámetros mínimos de arranque en `.env`:
+```env
+DEFAULT_LOCALE=es
+PLUGINS_DIR=.
+ENABLED_PLUGINS=jg_plugin_network
+LLM_PROVIDER=mock
+REQUIRE_DASHBOARD_REGISTRATION=false
+CHECKPOINTER_BACKEND=memory
+```

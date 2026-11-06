@@ -367,6 +367,14 @@ class PluginMetadata(BaseModel):
         default=None,
         description="Esquema Pydantic opcional para validar la configuración/env vars del plugin.",
     )
+    supported_locales: list[str] = Field(
+        default_factory=lambda: ["es", "en", "fr", "de", "it"],
+        description="Lista de códigos de idioma soportados por el plugin.",
+    )
+    default_locale: str | None = Field(
+        default=None,
+        description="Idioma preferido declarado por el plugin ('es', 'en', 'fr', 'de', 'it').",
+    )
     extra: dict[str, Any] = Field(
         default_factory=dict,
         description="Metadatos o configuraciones adicionales no estructuradas.",
