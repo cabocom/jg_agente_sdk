@@ -18,15 +18,16 @@ El SDK no contiene ni referencia `langgraph`, `langchain`, checkpointers de base
 Esto permite que cualquier desarrollador u organización cree plugins de especialidad e invoque o pruebe herramientas de forma aislada sin levantar contenedores ni bases de datos.
 
 ### Documentación Técnica Modular
-Estructurada en múltiples idiomas bajo [`docs/`](docs/README.md):
+Estructurada en múltiples idiomas bajo [`docs/`](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/README.md):
 - 🇪🇸 **Español (SSOT):**
-  - [01. Guía Rápida de Inicio](docs/es/01_quickstart.md) — Instalación, configuración y primer plugin en 5 minutos.
-  - [02. Especificación de Contratos y Modelos](docs/es/02_contracts_spec.md) — `AgentTool`, `ToolResult`, `AgentInput` y `AgentOutput`.
-  - [03. Referencia de Línea de Comandos](docs/es/03_cli_reference.md) — CLI de scaffolding, testing y validación de manifiestos.
-  - [04. Testing y Harness de Desarrollo](docs/es/04_testing_mock_runner.md) — `MockAgentRunner` y simulación sin infraestructura.
-  - [05. Despliegue Local con `jg_agente`](docs/es/05_running_with_jg_agente.md) — Variables de entorno mínimas y ejecución.
+  - [01. Guía Rápida de Inicio](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/es/01_quickstart.md) — Instalación, configuración y primer plugin en 5 minutos.
+  - [02. Especificación de Contratos y Modelos](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/es/02_contracts_spec.md) — `AgentTool`, `ToolResult`, `AgentInput` y `AgentOutput`.
+  - [03. Referencia de Línea de Comandos](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/es/03_cli_reference.md) — CLI de desarrollo y ciclo de vida de plugins (`jg`).
+  - [04. Testing y Harness de Desarrollo](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/es/04_testing_mock_runner.md) — `MockPluginRunner` y simulación sin infraestructura.
+  - [05. Despliegue Local con `jg_agente`](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/es/05_running_with_jg_agente.md) — Variables de entorno mínimas y ejecución.
+  - [06. Modos de Trabajo y Ciclo de Vida](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/es/06_plugin_modes_and_lifecycle.md) — Modo Autónomo vs Compartido y teardown limpio.
 - 🇬🇧 **English (Reference):**
-  - [01. Quickstart](docs/en/01_quickstart.md) · [02. Contracts](docs/en/02_contracts_spec.md) · [03. CLI](docs/en/03_cli_reference.md) · [04. Testing](docs/en/04_testing_mock_runner.md) · [05. Running](docs/en/05_running_with_jg_agente.md)
+  - [01. Quickstart](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/en/01_quickstart.md) · [02. Contracts](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/en/02_contracts_spec.md) · [03. CLI](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/en/03_cli_reference.md) · [04. Testing](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/en/04_testing_mock_runner.md) · [05. Running](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/en/05_running_with_jg_agente.md) · [06. Lifecycle](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/en/06_plugin_modes_and_lifecycle.md)
 
 ---
 
@@ -156,8 +157,8 @@ jg unlink mi_plugin
 ## 7. Despliegue Local con `jg_agente` (Variables de Entorno)
 
 Para probar la integración real de un plugin con el motor cognitivo de `jg_agente` en local sin dependencias de infraestructura pesada (PostgreSQL o `jg_dashboard`), consulta la guía completa:
-- **[05. Despliegue Local y Ejecución con `jg_agente`](docs/es/05_running_with_jg_agente.md)** (`en`: [05_running_with_jg_agente.md](docs/en/05_running_with_jg_agente.md))
-- **[06. Modos de Trabajo y Ciclo de Vida de Plugins](docs/es/06_plugin_modes_and_lifecycle.md)** (`en`: [06_plugin_modes_and_lifecycle.md](docs/en/06_plugin_modes_and_lifecycle.md))
+- **[05. Despliegue Local y Ejecución con `jg_agente`](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/es/05_running_with_jg_agente.md)** (`en`: [05_running_with_jg_agente.md](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/en/05_running_with_jg_agente.md))
+- **[06. Modos de Trabajo y Ciclo de Vida de Plugins](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/es/06_plugin_modes_and_lifecycle.md)** (`en`: [06_plugin_modes_and_lifecycle.md](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/docs/en/06_plugin_modes_and_lifecycle.md))
 
 Configuración mínima requerida en `.env`:
 ```env
@@ -183,7 +184,7 @@ pytest tests/
 
 ## 9. Licencia
 
-Este proyecto está licenciado bajo los términos de la **[Licencia MIT](LICENSE)**.
+Este proyecto está licenciado bajo los términos de la **[Licencia MIT](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/blob/main/LICENSE)**.
 
 ```text
 MIT License - Copyright (c) 2026 Javier Gálvez

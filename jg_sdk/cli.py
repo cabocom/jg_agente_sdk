@@ -2177,7 +2177,7 @@ def main(argv: list[str] | None = None) -> int:
         prog=prog_name,
         description="CLI para desarrollo y scaffolding de plugins en la plataforma jg_agente.",
     )
-    parser.add_argument("--version", action="version", version=f"{prog_name} 1.1.0")
+    parser.add_argument("--version", action="version", version=f"{prog_name} 1.1.1")
 
     subparsers = parser.add_subparsers(dest="subcommand", help="Comandos disponibles")
 
