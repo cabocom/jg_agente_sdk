@@ -1,10 +1,10 @@
 # CONTEXTO DE PROYECTO: jg_agente_sdk
 
-**Versión del documento:** 1.1.1  
-**Fecha de consolidación:** 7 de noviembre de 2026  
+**Versión del documento:** 1.1.2  
+**Fecha de consolidación:** 9 de noviembre de 2026  
 **Componente:** SDK Público de Desarrollo y Biblioteca Cliente (Plugin Development & Execution Client)  
 **Stack Tecnológico:** Python >= 3.11, Pydantic v2, HTTPX, Setuptools, Ruff, Pytest  
-**Estado:** Producción / Consolidado como Fuente Única de Verdad (SSOT).  
+**Estado:** Producción / Consolidado como Fuente Única de Verdad (SSOT) y sincronizado automáticamente como *mirror* público hacia `https://github.com/cabocom/jg_agente_sdk` (`workspace#8`).  
 - **Fuente Única de Verdad (SSOT):** Define todos los contratos públicos canónicos del ecosistema (`AgentTool`, `ToolResult`, `RiskLevel`, `ToolType`, `ExecutionStatus`, `BasePlugin`, `BaseEngine`, `PluginMetadata`, `AgentInput`, `AgentOutput`).
 - **Soporte de Internacionalización (i18n):**
   * `AgentInput`: Campo `locale: str = Field(default="es")` para propagar el idioma de la interacción.
