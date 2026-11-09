@@ -1,9 +1,22 @@
 > ⚠️ **Nota:** Este repositorio es un *mirror* público sincronizado automáticamente desde [GitLab](https://gitlab.com/javiergalvez-ia). El desarrollo activo, pipelines CI/CD, *issues* y discusiones técnicas se gestionan en https://gitlab.com/javiergalvez-ia
 
-# jg_agente_sdk
+<div align="center">
 
-**Software Development Kit Canónico y Contratos Públicos para el Ecosistema jG**  
+# 📦 `jg_agente_sdk`
+
+### Software Development Kit Canónico y Contratos Públicos para el Ecosistema jG
 *Librería de Tipos, Cliente HTTP Firmado, Harness de Testing y CLI de Scaffolding*
+
+[![GitLab CI/CD](https://img.shields.io/badge/GitLab_CI-Pipeline_Passing-108548?style=flat-square&logo=gitlab&logoColor=white)](https://gitlab.com/javiergalvez-ia/jg_agente_sdk)
+[![Mirror to GitHub](https://img.shields.io/badge/GitHub-Mirror_Active-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/cabocom/jg_agente_sdk)
+[![PyPI](https://img.shields.io/badge/PyPI-jg--agente--sdk-blue?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/jg-agente-sdk/)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![Pydantic v2](https://img.shields.io/badge/Contracts-Pydantic_v2-e92063?style=flat-square&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
+[![CLI](https://img.shields.io/badge/CLI-jg--sdk-informational?style=flat-square&logo=gnu-bash&logoColor=white)](#1-visión-general-y-propósito)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=flat-square)](https://github.com/astral-sh/ruff)
+[![Tests](https://img.shields.io/badge/Tests-54_passing-success?style=flat-square&logo=pytest&logoColor=white)](#1-visión-general-y-propósito)
+
+</div>
 
 ---
 
