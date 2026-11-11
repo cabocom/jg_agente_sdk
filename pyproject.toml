@@ -1,6 +1,6 @@
 [project]
 name = "jg-agente-sdk"
-version = "1.1.1"
+version = "1.2.0"
 description = "SDK desacoplado y contratos públicos para el ecosistema de plugins y clientes de jg_agente"
 readme = "README.md"
 requires-python = ">=3.11"

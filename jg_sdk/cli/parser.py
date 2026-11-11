@@ -260,7 +260,7 @@ def create_cli_parser(prog_name: str = "jg") -> argparse.ArgumentParser:
         prog=prog_name,
         description="CLI para desarrollo y scaffolding de plugins en la plataforma jg_agente.",
     )
-    parser.add_argument("--version", action="version", version=f"{prog_name} 1.1.1")
+    parser.add_argument("--version", action="version", version=f"{prog_name} 1.2.0")
     subparsers = parser.add_subparsers(dest="subcommand", help="Comandos disponibles")
     _configure_subcommand_parsers(subparsers)
     return parser
