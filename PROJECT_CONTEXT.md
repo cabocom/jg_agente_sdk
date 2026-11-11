@@ -51,11 +51,31 @@ jg_agente_sdk/
 ├── jg_sdk/
 │   ├── __init__.py         # Re-exportación unificada de contratos y cliente
 │   ├── client.py           # AgentClient con firma criptográfica HMAC-SHA256
-│   ├── cli.py              # CLI ejecutable 'jg' (ping, run, list-tools)
+│   ├── cli/                # Paquete modular de comandos CLI (SOLID, subcomandos <300 LOC)
+│   │   ├── __init__.py     # Re-exportación de API pública y dispatcher principal
+│   │   ├── __main__.py     # Punto de ejecución directa 'python -m jg_sdk.cli'
+│   │   ├── build_cmd.py    # Subcomando 'jg build' y empaquetado Docker
+│   │   ├── clean_cmd.py    # Subcomando 'jg clean' (recursos, symlinks y contenedores)
+│   │   ├── common.py       # Utilidades comunes y detección contextual de plugins
+│   │   ├── dev_cmd.py      # Subcomandos 'jg dev', 'jg run', 'jg install', 'jg test'
+│   │   ├── init_cmd.py     # Subcomando 'jg init' (scaffolding arquitectónico)
+│   │   ├── link_cmd.py     # Subcomandos 'jg link' y 'jg unlink' (enlaces seguros)
+│   │   ├── parser.py       # Configuración declarativa de argumentos y subparsers
+│   │   ├── reload_cmd.py   # Subcomando 'jg reload' (hot reload de plugins en agente)
+│   │   ├── status_cmd.py   # Subcomando 'jg status' (inspección de salud y capacidades)
+│   │   └── templates/      # Plantillas generadoras de scaffolding estructuradas
+│   │       ├── __init__.py # Re-exportación unificada de generadores
+│   │       ├── config.py   # pyproject.toml, .gitignore, install.sh, .env
+│   │       ├── docker.py   # docker-compose.yml, entrypoint.sh
+│   │       ├── docs.py     # README.md
+│   │       ├── engines.py  # engines.py
+│   │       ├── plugin.py   # plugin.py
+│   │       ├── tests.py    # tests/test_plugin.py
+│   │       └── tools.py    # tools.py
 │   ├── contracts.py        # Contratos canónicos: AgentTool, ToolResult, BasePlugin, RiskLevel
 │   ├── models.py           # Modelos de I/O: AgentInput, AgentOutput, UserContext, ExecutionStatus
 │   └── py.typed            # Marcador PEP 561 de tipado estático
-├── tests/                  # Suite de 53 tests unitarios (CLI, HMAC, contratos, plugins, seguridad)
+├── tests/                  # Suite de 54 tests unitarios (CLI, HMAC, contratos, plugins, seguridad)
 ├── docs/                   # Documentación técnica multilingüe (es/en) y resolución de issues
 │   ├── README.md           # Índice de navegación entre idiomas
 │   ├── es/                 # Documentación canónica en español (SSOT)
