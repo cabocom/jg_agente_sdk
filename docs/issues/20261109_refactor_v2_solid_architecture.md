@@ -1,7 +1,7 @@
 # [REFACTOR-v2.0] Refactorización Estructural SOLID y Descomposición de `cli.py` (2.663 LOC) en Subcomandos (`jg_agente_sdk`)
 
-- **Estado:** Fase 1 Completada (cli.py modularizado en jg_sdk/cli/)
-- **Fecha:** 2026-11-09 (Actualizado: 2026-11-11)
+- **Estado:** Cerrado / Resuelto (v1.2.0 / v1.2.1)
+- **Fecha:** 2026-11-09 (Cerrado: 2026-11-11)
 - **Proyecto:** `jg_agente_sdk`
 - **GitLab Issue:** [jg_agente_sdk#9](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/work_items/9)
 - **Asignado a:** Javier Gálvez (`@cabocom`)
