@@ -10,7 +10,7 @@
 [![PyPI](https://img.shields.io/badge/PyPI-jg--agente--sdk-blue?style=flat-square&logo=pypi&logoColor=white)](https://pypi.org/project/jg-agente-sdk/)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Pydantic v2](https://img.shields.io/badge/Contracts-Pydantic_v2-e92063?style=flat-square&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
-[![CLI](https://img.shields.io/badge/CLI-jg--sdk-informational?style=flat-square&logo=gnu-bash&logoColor=white)](#1-visión-general-y-propósito)
+[![CLI](https://img.shields.io/badge/CLI-jg-informational?style=flat-square&logo=gnu-bash&logoColor=white)](#1-visión-general-y-propósito)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=flat-square)](https://github.com/astral-sh/ruff)
 [![Tests](https://img.shields.io/badge/Tests-54_passing-success?style=flat-square&logo=pytest&logoColor=white)](#1-visión-general-y-propósito)
 

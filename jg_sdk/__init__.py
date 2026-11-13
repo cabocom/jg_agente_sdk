@@ -61,7 +61,7 @@ from jg_sdk.models import (
 )
 from jg_sdk.testing import MockPluginRunner
 
-__version__ = "1.2.1"
+__version__ = "1.3.0"
 
 __all__ = [
     # Version
