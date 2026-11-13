@@ -9,133 +9,28 @@
 
 Implementa la especificación criptográfica canónica compartida entre el Execution Plane
 (jg_agente) y el Control Plane (jg_dashboard / GLOBAL-001):
-    canonical_string = f"{METHOD}\n{PATH}\n{TIMESTAMP}\n{SHA256(RAW_BODY)}"
+    canonical_string = f"{METHOD}\\n{PATH}\\n{TIMESTAMP}\\n{SHA256(RAW_BODY)}"
     signature = HMAC-SHA256(canonical_string, secret).hexdigest()
 """
 
-import hashlib
-import hmac
 import json
 import time
 from typing import Any, Self
-from urllib.parse import urlparse
 
 import httpx
 
+from jg_sdk.auth import (
+    DEFAULT_MAX_TIMESTAMP_SKEW_SECONDS,
+    AgentAuthError,
+    AgentClientError,
+    AgentResponseError,
+    compute_body_sha256,
+    compute_canonical_string,
+    compute_hmac_signature,
+    verify_hmac_signature,
+    verify_request_signature,
+)
 from jg_sdk.models import AgentInput, AgentOutput, ExecutionThreadDetail, UserContext
-
-# Ventana de tolerancia temporal anti-repetición (5 minutos)
-DEFAULT_MAX_TIMESTAMP_SKEW_SECONDS = 300
-
-
-# =====================================================================
-# 1. Utilidades Criptográficas HMAC-SHA256
-# =====================================================================
-
-
-def compute_body_sha256(body_bytes: bytes | None) -> str:
-    """Calcula el hash SHA-256 en hexadecimal del cuerpo crudo de la petición.
-
-    Para cuerpos vacíos o None, devuelve el hash estándar de b"".
-    """
-    data = body_bytes or b""
-    return hashlib.sha256(data).hexdigest()
-
-
-def compute_canonical_string(
-    method: str,
-    path: str,
-    timestamp: str | int,
-    body_bytes: bytes | None,
-) -> str:
-    """Construye la cadena canónica normalizada para la firma HMAC-SHA256.
-
-    Formato:
-        METHOD\nPATH\nTIMESTAMP\nBODY_SHA256
-    """
-    norm_method = method.strip().upper()
-    # Si viene una URL completa, extraemos sólo el path
-    parsed = urlparse(path)
-    norm_path = parsed.path if parsed.path else path.strip()
-    norm_timestamp = str(timestamp).strip()
-    body_hash = compute_body_sha256(body_bytes)
-
-    return f"{norm_method}\n{norm_path}\n{norm_timestamp}\n{body_hash}"
-
-
-def compute_hmac_signature(secret: str, canonical_string: str) -> str:
-    """Calcula la firma HMAC-SHA256 en formato hexadecimal."""
-    return hmac.new(
-        key=secret.encode("utf-8"),
-        msg=canonical_string.encode("utf-8"),
-        digestmod=hashlib.sha256,
-    ).hexdigest()
-
-
-def verify_hmac_signature(secret: str, canonical_string: str, received_signature: str) -> bool:
-    """Compara en tiempo constante la firma recibida con la firma esperada."""
-    expected_signature = compute_hmac_signature(secret, canonical_string)
-    return hmac.compare_digest(expected_signature.lower(), received_signature.strip().lower())
-
-
-def verify_request_signature(
-    secret: str,
-    method: str,
-    path: str,
-    timestamp: str | int,
-    body_bytes: bytes | None,
-    received_signature: str,
-    max_skew_seconds: int = DEFAULT_MAX_TIMESTAMP_SKEW_SECONDS,
-) -> bool:
-    """Verifica la validez de una firma HTTP comprobando también la ventana anti-replay.
-
-    Args:
-        secret: Secreto simétrico compartido.
-        method: Verbo HTTP (GET, POST, etc.).
-        path: Ruta URL de la petición.
-        timestamp: Timestamp UNIX epoch enviado en cabecera.
-        body_bytes: Cuerpo crudo de la petición.
-        received_signature: Firma HMAC enviada en X-Signature.
-        max_skew_seconds: Tolerancia máxima en segundos contra replay attacks.
-
-    Returns:
-        True si la firma es válida y el timestamp está dentro de la ventana de tolerancia.
-    """
-    try:
-        ts_int = int(str(timestamp).strip())
-    except ValueError:
-        return False
-
-    current_time = int(time.time())
-    if abs(current_time - ts_int) > max_skew_seconds:
-        return False
-
-    canonical = compute_canonical_string(method, path, ts_int, body_bytes)
-    return verify_hmac_signature(secret, canonical, received_signature)
-
-
-# =====================================================================
-# 2. Excepciones del Cliente
-# =====================================================================
-
-
-class AgentClientError(Exception):
-    """Excepción base para errores del cliente HTTP de jg_agente."""
-
-
-class AgentAuthError(AgentClientError):
-    """Error de autenticación o rechazo de firma HMAC por parte del agente."""
-
-
-class AgentResponseError(AgentClientError):
-    """Respuesta con código de error HTTP emitida por el agente."""
-
-    def __init__(self, status_code: int, detail: str, body: Any = None) -> None:
-        super().__init__(f"HTTP {status_code}: {detail}")
-        self.status_code = status_code
-        self.detail = detail
-        self.body = body
-
 
 # =====================================================================
 # 3. Cliente Asíncrono JGAgentClient
@@ -226,43 +121,51 @@ class JGAgentClient:
         self,
         method: str,
         path: str,
-        *,
         json_data: Any = None,
-        body_bytes: bytes | None = None,
+        content: bytes | None = None,
         correlation_id: str | None = None,
-        headers: dict[str, str] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
-        """Envía una petición HTTP autenticada con firma canónica HMAC-SHA256."""
-        norm_path = path if path.startswith("/") else f"/{path}"
-        url = f"{self.base_url}{norm_path}"
+        """Ejecuta una petición HTTP asíncrona autenticada con firma HMAC-SHA256."""
+        # 1. Resolver el cuerpo crudo en bytes para la firma
+        body_bytes: bytes | None = None
+        if content is not None:
+            body_bytes = content
+        elif json_data is not None:
+            # Serialización canónica estándar (sin espacios redundantes)
+            body_bytes = json.dumps(json_data, separators=(",", ":")).encode("utf-8")
 
-        raw_body: bytes | None = None
-        req_headers: dict[str, str] = dict(headers or {})
-
-        if json_data is not None:
-            raw_body = json.dumps(json_data).encode("utf-8")
-            req_headers["Content-Type"] = "application/json"
-        elif body_bytes is not None:
-            raw_body = body_bytes
-
-        signed_headers = self._build_signed_headers(
+        # 2. Generar cabeceras autenticadas
+        req_headers = self._build_signed_headers(
             method=method,
-            path=norm_path,
-            body_bytes=raw_body,
+            path=path,
+            body_bytes=body_bytes,
             correlation_id=correlation_id,
-            extra_headers=req_headers,
+            extra_headers=extra_headers,
         )
 
-        resp = await self._client.request(
-            method=method.upper(),
-            url=url,
-            content=raw_body,
-            headers=signed_headers,
-        )
+        if json_data is not None and "Content-Type" not in req_headers:
+            req_headers["Content-Type"] = "application/json"
 
-        if resp.status_code == 401:
-            raise AgentAuthError(f"Rechazo de autenticación HMAC por el agente: {resp.text}")
-        if resp.status_code >= 400:
+        # 3. Despachar petición
+        url = f"{self.base_url}{path}"
+        try:
+            resp = await self._client.request(
+                method=method,
+                url=url,
+                content=body_bytes,
+                headers=req_headers,
+            )
+        except httpx.RequestError as exc:
+            raise AgentClientError(f"Error de red al conectar con jg_agente: {exc}") from exc
+
+        # 4. Manejo de errores de transporte y autenticación
+        if resp.status_code in (401, 403):
+            raise AgentAuthError(
+                f"Error de autenticación inter-servicio ({resp.status_code}): {resp.text}"
+            )
+
+        if resp.is_error:
             raise AgentResponseError(
                 status_code=resp.status_code,
                 detail=resp.text,
@@ -326,7 +229,8 @@ class JGAgentClient:
             method="GET",
             path=f"/executions/{thread_id}",
         )
-        return ExecutionThreadDetail.model_validate(resp.json())
+        data = resp.json()
+        return ExecutionThreadDetail.model_validate(data)
 
     async def approve(
         self,
@@ -364,3 +268,17 @@ class JGAgentClient:
 
 # Alias conveniente
 AgentClient = JGAgentClient
+
+__all__ = [
+    "DEFAULT_MAX_TIMESTAMP_SKEW_SECONDS",
+    "AgentAuthError",
+    "AgentClient",
+    "AgentClientError",
+    "AgentResponseError",
+    "JGAgentClient",
+    "compute_body_sha256",
+    "compute_canonical_string",
+    "compute_hmac_signature",
+    "verify_hmac_signature",
+    "verify_request_signature",
+]

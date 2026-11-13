@@ -15,15 +15,14 @@ Este issue planifica y ejecuta la refactorización estructural v2.0 de `jg_agent
 
 ## 2. Diagnóstico Real de Ficheros Monolíticos (`>300 LOC`)
 
-El 65% de todo el código del SDK residía en un único fichero monolítico:
-1. `jg_sdk/cli.py` (**2.663 LOC**, **69 funciones**) -> **RESUELTO: Descompuesto en paquete modular `jg_sdk/cli/`**
-2. `jg_sdk/contracts.py` (**506 LOC**)
-3. `jg_sdk/models.py` (**447 LOC**)
-4. `jg_sdk/client.py` (**366 LOC**)
+1. `jg_sdk/cli.py` (**2.663 LOC**, **69 funciones**) -> **RESUELTO: Descompuesto en paquete modular `jg_sdk/cli/`** (máx 266 LOC)
+2. `jg_sdk/contracts.py` (**506 LOC**) -> **RESUELTO: Descompuesto en `contracts_enums.py` (64 LOC), `contracts_tools.py` (269 LOC), `contracts_plugins.py` (214 LOC) y fachada `contracts.py` (48 LOC)**
+3. `jg_sdk/models.py` (**447 LOC**) -> **RESUELTO: Descompuesto en `models_context.py` (129 LOC), `models_io.py` (133 LOC), `models_execution.py` (228 LOC) y fachada `models.py` (59 LOC)**
+4. `jg_sdk/client.py` (**366 LOC**) -> **RESUELTO: Extraído `auth.py` (139 LOC) y `client.py` reducido a 254 LOC**
 
 ## 3. Plan de Refactorización Estructural (Cero Roturas)
 
-- **Fase 1 (Modularización de `jg_sdk/cli.py` - COMPLETADA):**
+- [x] **Fase 1 (Modularización de `jg_sdk/cli.py` - COMPLETADA):**
   - Descomposición completa de `cli.py` (2.663 LOC) en un paquete estructurado `jg_sdk/cli/` con módulos de responsabilidad única:
     * `jg_sdk/cli/__init__.py` (165 LOC): Re-exportación completa de la API pública y dispatchers.
     * `jg_sdk/cli/__main__.py` (14 LOC): Punto de entrada para ejecución directa `python -m jg_sdk.cli`.
@@ -36,22 +35,19 @@ El 65% de todo el código del SDK residía en un único fichero monolítico:
     * `jg_sdk/cli/parser.py` (266 LOC): Árbol declarativo de argumentos y opciones CLI.
     * `jg_sdk/cli/reload_cmd.py` (109 LOC): Hot-reload de plugins en caliente vía socket/API REST.
     * `jg_sdk/cli/status_cmd.py` (184 LOC): Estado contextual e inspección de salud.
-    * `jg_sdk/cli/templates/` (Paquete modular de generadores de plantillas, cada uno < 185 LOC):
-      - `config.py` (153 LOC)
-      - `docker.py` (177 LOC)
-      - `docs.py` (77 LOC)
-      - `engines.py` (88 LOC)
-      - `plugin.py` (137 LOC)
-      - `tests.py` (133 LOC)
-      - `tools.py` (183 LOC)
+    * `jg_sdk/cli/templates/` (Paquete modular de generadores de plantillas, cada uno < 185 LOC).
   - Ningún módulo supera las 300 LOC ni ninguna función supera las 40 LOC.
   - 100% de compatibilidad hacia atrás garantizada: `from jg_sdk.cli import *` y `project.scripts` (`jg = "jg_sdk.cli:main"`).
-- **Fase 2 (Segmentación de `contracts.py`, `models.py` y `client.py`):**
-  - Organizar contratos y modelos por dominio manteniendo intactos todos los re-exports en `jg_sdk/__init__.py`, `jg_sdk/contracts.py` y `jg_sdk/models.py` para no afectar el test de paridad `test_contracts_drift.py` de `jg_agente`.
+- [x] **Fase 2 (Segmentación de `contracts.py`, `models.py` y `client.py` - COMPLETADA):**
+  - Organización de contratos y modelos por dominio manteniendo intactos todos los re-exports en `jg_sdk/__init__.py`, `jg_sdk/contracts.py` y `jg_sdk/models.py`.
+  - Descomposición de `contracts.py` (506 LOC) en `contracts_enums.py` (64 LOC), `contracts_tools.py` (269 LOC) y `contracts_plugins.py` (214 LOC).
+  - Descomposición de `models.py` (447 LOC) en `models_context.py` (129 LOC), `models_io.py` (133 LOC) y `models_execution.py` (228 LOC).
+  - Descomposición de `client.py` (366 LOC) extrayendo `auth.py` (139 LOC) y reduciendo `client.py` a 254 LOC.
+  - 0 archivos > 300 LOC en todo el SDK. 100% de tests unitarios pasando (54/54) y paridad total con `jg_agente`.
 
-## 4. Criterios de Aceptación (Fase 1)
+## 4. Criterios de Aceptación (Fase 1 y Fase 2)
 
-- [x] Todos los submódulos de CLI bajo el umbral de 300 LOC (máximo 266 LOC) y funciones `<40 LOC`.
+- [x] Todos los módulos bajo el umbral estricto de 300 LOC (máximo 271 LOC) y funciones `<40 LOC`.
 - [x] 100% de tests en verde (`pytest`: 54/54 passing).
 - [x] Linter limpio y formateo estricto (`ruff check .`, `ruff format --check .`).
 - [x] Cero roturas en tests de drift de `jg_agente` (`test_contracts_drift.py` 8/8 passing).
