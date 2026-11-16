@@ -61,6 +61,7 @@ class McpHttpClient:
             self._client = httpx.AsyncClient(
                 base_url=self.base_url,
                 timeout=self.timeout_sec,
+                follow_redirects=True,
                 transport=self._transport,
                 headers={"Content-Type": "application/json", **self._headers},
             )
