@@ -12,7 +12,7 @@
 [![Pydantic v2](https://img.shields.io/badge/Contracts-Pydantic_v2-e92063?style=flat-square&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
 [![CLI](https://img.shields.io/badge/CLI-jg-informational?style=flat-square&logo=gnu-bash&logoColor=white)](#1-visión-general-y-propósito)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=flat-square)](https://github.com/astral-sh/ruff)
-[![Tests](https://img.shields.io/badge/Tests-54_passing-success?style=flat-square&logo=pytest&logoColor=white)](#1-visión-general-y-propósito)
+[![Tests](https://img.shields.io/badge/Tests-70_passing-success?style=flat-square&logo=pytest&logoColor=white)](#1-visión-general-y-propósito)
 
 </div>
 
@@ -187,7 +187,7 @@ CHECKPOINTER_BACKEND=memory
 
 ## 8. Verificación de Calidad
 
-La suite del SDK incluye **54 pruebas automatizadas** que validan la serialización de contratos, la firma HMAC, el mock runner, y la gestión de ciclo de vida con la CLI:
+La suite del SDK incluye **70 pruebas automatizadas** que validan la serialización de contratos, herramientas asíncronas (`async def`), mitigación SSRF y DNS Pinning, cliente nativo MCP (`McpHttpClient`) con Schema Pinning y truncado a 64 KB, firma HMAC, mock runner y gestión de ciclo de vida con la CLI:
 
 ```bash
 pytest tests/

@@ -40,6 +40,11 @@ from jg_sdk.contracts import (
     ToolType,
     VerifierEngine,
 )
+from jg_sdk.mcp import (
+    McpClientError,
+    McpHttpClient,
+    SchemaDriftError,
+)
 from jg_sdk.models import (
     AgentInput,
     AgentOutput,
@@ -58,6 +63,10 @@ from jg_sdk.models import (
     StepExecutionRecord,
     UserContext,
     VerificationStatus,
+)
+from jg_sdk.security import (
+    SSRFValidationError,
+    SSRFValidator,
 )
 from jg_sdk.testing import MockPluginRunner
 
@@ -115,4 +124,11 @@ __all__ = [
     "verify_request_signature",
     # Harness de Testing
     "MockPluginRunner",
+    # Seguridad y Mitigación SSRF
+    "SSRFValidator",
+    "SSRFValidationError",
+    # Cliente MCP Nativo y Schema Pinning
+    "McpHttpClient",
+    "McpClientError",
+    "SchemaDriftError",
 ]

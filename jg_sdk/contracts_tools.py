@@ -7,7 +7,9 @@
 
 """Contratos de herramientas y resultados normalizados de ejecución."""
 
+import asyncio
 import concurrent.futures
+import inspect
 import time
 from collections.abc import Callable
 from typing import Any, Self
@@ -15,6 +17,41 @@ from typing import Any, Self
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from jg_sdk.contracts_enums import RiskLevel, ToolType
+
+
+def _normalize_tool_result(res: Any, duration_ms: float) -> "ToolResult":
+    """Normaliza cualquier retorno de ejecución en un ToolResult estándar."""
+    d = round(duration_ms, 2)
+    if isinstance(res, ToolResult):
+        if res.duration_ms <= 0.0:
+            res.duration_ms = d
+        return res
+    if isinstance(res, str):
+        return ToolResult(success=True, output=res, duration_ms=d)
+    if isinstance(res, bool):
+        return ToolResult(
+            success=res,
+            output="Operación exitosa" if res else "Operación fallida",
+            duration_ms=d,
+        )
+    return ToolResult(success=True, output=res, duration_ms=d)
+
+
+def _handle_tool_error(
+    exc: Exception, name: str, timeout: float, start_time: float
+) -> "ToolResult":
+    """Genera ToolResult estándar ante fallos o tiempos de espera agotados."""
+    d = round((time.perf_counter() - start_time) * 1000, 2)
+    if isinstance(exc, TimeoutError):
+        return ToolResult(
+            success=False,
+            output="",
+            error=f"TimeoutError: La herramienta '{name}' superó el tiempo límite de {timeout}s",
+            duration_ms=d,
+            metadata={"timeout_sec": timeout, "timed_out": True},
+        )
+    return ToolResult(success=False, output="", error=str(exc), duration_ms=d)
+
 
 # 2. Contratos de Herramientas y Resultados
 # =====================================================================
@@ -152,60 +189,46 @@ class AgentTool(BaseModel):
             self.reversible = True
         return self
 
+    @property
+    def is_async(self) -> bool:
+        """Indica si la función subyacente de la herramienta es asíncrona."""
+        return inspect.iscoroutinefunction(self.func)
+
     def run(self, *args: Any, **kwargs: Any) -> ToolResult:
         """Ejecuta la herramienta de forma síncrona controlando el timeout asignado."""
+        if self.is_async:
+
+            def _runner() -> ToolResult:
+                return asyncio.run(self.run_async(*args, **kwargs))
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                return executor.submit(_runner).result()
+
         start_time = time.perf_counter()
         timeout = self.timeout_sec or 30.0
-
-        def _exec() -> Any:
-            return self.func(*args, **kwargs)
-
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(_exec)
+                future = executor.submit(self.func, *args, **kwargs)
                 res = future.result(timeout=timeout)
-
-            duration = (time.perf_counter() - start_time) * 1000
-
-            if isinstance(res, ToolResult):
-                if res.duration_ms <= 0.0:
-                    res.duration_ms = round(duration, 2)
-                return res
-            elif isinstance(res, str):
-                return ToolResult(
-                    success=True,
-                    output=res,
-                    duration_ms=round(duration, 2),
-                )
-            elif isinstance(res, bool):
-                return ToolResult(
-                    success=res,
-                    output="Operación exitosa" if res else "Operación fallida",
-                    duration_ms=round(duration, 2),
-                )
-            else:
-                return ToolResult(
-                    success=True,
-                    output=res,
-                    duration_ms=round(duration, 2),
-                )
-        except TimeoutError:
-            duration = (time.perf_counter() - start_time) * 1000
-            return ToolResult(
-                success=False,
-                output="",
-                error=f"TimeoutError: La herramienta '{self.name}' superó el tiempo límite de {timeout}s",
-                duration_ms=round(duration, 2),
-                metadata={"timeout_sec": timeout, "timed_out": True},
-            )
+            return _normalize_tool_result(res, (time.perf_counter() - start_time) * 1000)
         except Exception as exc:
-            duration = (time.perf_counter() - start_time) * 1000
-            return ToolResult(
-                success=False,
-                output="",
-                error=str(exc),
-                duration_ms=round(duration, 2),
-            )
+            return _handle_tool_error(exc, self.name, timeout, start_time)
+
+    async def run_async(self, *args: Any, **kwargs: Any) -> ToolResult:
+        """Ejecuta la herramienta de forma asíncrona controlando el timeout asignado."""
+        start_time = time.perf_counter()
+        timeout = self.timeout_sec or 30.0
+        try:
+            if self.is_async:
+                res = await asyncio.wait_for(self.func(*args, **kwargs), timeout=timeout)
+            else:
+                res = await asyncio.wait_for(
+                    asyncio.to_thread(self.func, *args, **kwargs),
+                    timeout=timeout,
+                )
+            return _normalize_tool_result(res, (time.perf_counter() - start_time) * 1000)
+        except Exception as exc:
+            return _handle_tool_error(exc, self.name, timeout, start_time)
 
     def rollback(self, rollback_context: dict[str, Any]) -> ToolResult:
         """Ejecuta la función de compensación si la herramienta es reversible."""

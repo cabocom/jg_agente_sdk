@@ -109,49 +109,43 @@ class MockPluginRunner:
             self._engines = self.plugin.register_engines()
         return dict(self._engines)
 
+    def _prepare_call_kwargs(
+        self,
+        tool: AgentTool,
+        args: dict[str, Any] | BaseModel | None = None,
+    ) -> dict[str, Any]:
+        """Normaliza y valida los argumentos de entrada contra el esquema de la herramienta."""
+        if args is None:
+            return {}
+        if isinstance(args, BaseModel):
+            if tool.args_schema is not None and not isinstance(args, tool.args_schema):
+                return tool.args_schema.model_validate(args.model_dump()).model_dump()
+            return args.model_dump()
+        if isinstance(args, dict):
+            if tool.args_schema is not None:
+                return tool.args_schema.model_validate(args).model_dump()
+            return dict(args)
+        raise TypeError(f"Los argumentos deben ser dict o BaseModel, se recibió {type(args)}.")
+
     def run_tool(
         self,
         tool_name: str,
         args: dict[str, Any] | BaseModel | None = None,
     ) -> ToolResult:
-        """Ejecuta una herramienta validando previamente sus argumentos contra args_schema.
-
-        Args:
-            tool_name: Nombre de la herramienta a invocar.
-            args: Diccionario de argumentos o instancia de BaseModel.
-
-        Returns:
-            ToolResult resultante de la invocación.
-
-        Raises:
-            KeyError: Si la herramienta no existe en el plugin.
-            ValidationError: Si los argumentos no cumplen con args_schema.
-        """
+        """Ejecuta una herramienta validando previamente sus argumentos contra args_schema."""
         tool = self.get_tool(tool_name)
-        call_kwargs: dict[str, Any] = {}
-
-        if args is not None:
-            if isinstance(args, BaseModel):
-                # Si se pasó un BaseModel y la tool tiene args_schema
-                if tool.args_schema is not None and not isinstance(args, tool.args_schema):
-                    # Validar/transformar si es de otro tipo BaseModel
-                    validated = tool.args_schema.model_validate(args.model_dump())
-                    call_kwargs = validated.model_dump()
-                else:
-                    call_kwargs = args.model_dump()
-            elif isinstance(args, dict):
-                # Validar contra el esquema Pydantic si está definido
-                if tool.args_schema is not None:
-                    validated = tool.args_schema.model_validate(args)
-                    call_kwargs = validated.model_dump()
-                else:
-                    call_kwargs = dict(args)
-            else:
-                raise TypeError(
-                    f"Los argumentos deben ser dict o BaseModel, se recibió {type(args)}."
-                )
-
+        call_kwargs = self._prepare_call_kwargs(tool, args)
         return tool.run(**call_kwargs)
+
+    async def run_tool_async(
+        self,
+        tool_name: str,
+        args: dict[str, Any] | BaseModel | None = None,
+    ) -> ToolResult:
+        """Ejecuta una herramienta de forma asíncrona validando previamente sus argumentos."""
+        tool = self.get_tool(tool_name)
+        call_kwargs = self._prepare_call_kwargs(tool, args)
+        return await tool.run_async(**call_kwargs)
 
     def rollback_tool(
         self,

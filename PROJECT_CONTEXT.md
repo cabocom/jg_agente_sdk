@@ -1,10 +1,10 @@
 # CONTEXTO DE PROYECTO: jg_agente_sdk
 
-**Versión del documento:** 1.3.0  
-**Fecha de consolidación:** 13 de noviembre de 2026  
+**Versión del documento:** 1.4.0  
+**Fecha de consolidación:** 16 de noviembre de 2026  
 **Componente:** SDK Público de Desarrollo y Biblioteca Cliente (Plugin Development & Execution Client)  
 **Stack Tecnológico:** Python >= 3.11, Pydantic v2, HTTPX, Setuptools, Ruff, Pytest  
-**Estado:** Producción / Consolidado como Fuente Única de Verdad (SSOT) y 100% certificado bajo SOLID v2.0 (0 archivos > 300 LOC). Fases 1 y 2 de refactorización estructural completadas: descomposición de `cli.py` (2.663 LOC a submódulos <= 266 LOC), `contracts.py` (506 LOC a módulos <= 269 LOC), `models.py` (447 LOC a módulos <= 228 LOC) y `client.py` (366 LOC a 254 LOC). Suite completa de 54 tests pasando al 100% y Ruff limpio sin infracciones. Sincronizado automáticamente como *mirror* público hacia `https://github.com/cabocom/jg_agente_sdk` (`workspace#8`).  
+**Estado:** Producción / Consolidado como Fuente Única de Verdad (SSOT) y 100% certificado bajo SOLID v2.0 (0 archivos > 300 LOC). Fases 1, 2 y Fase MCP completadas: soporte nativo para herramientas asíncronas (`AgentTool.run_async()`, `MockPluginRunner.run_tool_async`), módulo unificado de mitigación SSRF y DNS Pinning (`jg_sdk.security.ssrf`), e implementación del cliente nativo MCP (`jg_sdk.mcp.McpHttpClient`) con Streamable HTTP, JSON-RPC 2.0 y *Schema Pinning* determinista SHA-256. Suite completa de 70 tests pasando al 100% y Ruff limpio sin infracciones. Sincronizado automáticamente como *mirror* público hacia `https://github.com/cabocom/jg_agente_sdk` (`workspace#8`).  
 - **Fuente Única de Verdad (SSOT):** Define todos los contratos públicos canónicos del ecosistema (`AgentTool`, `ToolResult`, `RiskLevel`, `ToolType`, `ExecutionStatus`, `BasePlugin`, `BaseEngine`, `PluginMetadata`, `AgentInput`, `AgentOutput`).
 - **Soporte de Internacionalización (i18n):**
   * `AgentInput`: Campo `locale: str = Field(default="es")` para propagar el idioma de la interacción.
@@ -74,8 +74,16 @@ jg_agente_sdk/
 │   │       └── tools.py    # tools.py
 │   ├── contracts.py        # Contratos canónicos: AgentTool, ToolResult, BasePlugin, RiskLevel
 │   ├── models.py           # Modelos de I/O: AgentInput, AgentOutput, UserContext, ExecutionStatus
+│   ├── mcp/                # Cliente nativo MCP, JSON-RPC 2.0 y Schema Pinning determinista
+│   │   ├── __init__.py     # Re-exportación de McpHttpClient, SchemaDriftError y utilidades
+│   │   ├── client.py       # McpHttpClient vía Streamable HTTP y truncado a 64 KB
+│   │   ├── normalizer.py   # Normalización a primitivos JSON y hash SHA-256 canónico
+│   │   └── schemas.py      # Esquemas de mensajes JSON-RPC 2.0 y respuestas MCP
+│   ├── security/           # Protección de red unificada contra SSRF y DNS Pinning
+│   │   ├── __init__.py     # Re-exportación de SSRFValidator y SSRFValidationError
+│   │   └── ssrf.py         # Validador SSRF, rangos bloqueados, DNS Pinning y resolución segura
 │   └── py.typed            # Marcador PEP 561 de tipado estático
-├── tests/                  # Suite de 54 tests unitarios (CLI, HMAC, contratos, plugins, seguridad)
+├── tests/                  # Suite de 70 tests unitarios (CLI, HMAC, contratos, async, SSRF, MCP)
 ├── docs/                   # Documentación técnica multilingüe (es/en) y resolución de issues
 │   ├── README.md           # Índice de navegación entre idiomas
 │   ├── es/                 # Documentación canónica en español (SSOT)
