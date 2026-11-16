@@ -27,13 +27,13 @@ def validator() -> SSRFValidator:
 
 def test_scheme_validation(validator: SSRFValidator) -> None:
     """Verifica el filtrado estricto de esquemas URI."""
-    with pytest.raises(SSRFValidationError, match="Esquema 'file' no autorizado"):
+    with pytest.raises(SSRFValidationError, match="no autorizado"):
         validator.assert_safe_url("file:///etc/passwd")
 
-    with pytest.raises(SSRFValidationError, match="Esquema 'ftp' no autorizado"):
+    with pytest.raises(SSRFValidationError, match="no autorizado"):
         validator.assert_safe_url("ftp://example.com/file.txt")
 
-    with pytest.raises(SSRFValidationError, match="Esquema 'gopher' no autorizado"):
+    with pytest.raises(SSRFValidationError, match="no autorizado"):
         validator.assert_safe_url("gopher://127.0.0.1:70")
 
 

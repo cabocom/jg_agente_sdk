@@ -190,7 +190,7 @@ class SSRFValidator:
         if scheme not in DEFAULT_ALLOWED_SCHEMES:
             return (
                 False,
-                f"Esquema '{scheme}' no autorizado. Permitidos: {DEFAULT_ALLOWED_SCHEMES}",
+                f"Esquema de protocolo no autorizado '{scheme}'. Permitidos: {DEFAULT_ALLOWED_SCHEMES}",
                 None,
                 None,
             )
