@@ -47,9 +47,18 @@ class TestHMACCryptography(unittest.TestCase):
         body_bytes = b'{"test": 123}'
         body_hash = hashlib.sha256(body_bytes).hexdigest()
 
-        canonical = compute_canonical_string(method, path, timestamp, body_bytes)
-        expected = f"POST\n/api/v1/executions\n1700000000\n{body_hash}"
-        self.assertEqual(canonical, expected)
+        # 4 componentes (sin nonce)
+        canonical_no_nonce = compute_canonical_string(method, path, timestamp, body_bytes)
+        expected_no_nonce = f"POST\n/api/v1/executions\n1700000000\n{body_hash}"
+        self.assertEqual(canonical_no_nonce, expected_no_nonce)
+
+        # 5 componentes (con nonce)
+        nonce = "550e8400-e29b-41d4-a716-446655440000"
+        canonical_with_nonce = compute_canonical_string(
+            method, path, timestamp, body_bytes, nonce=nonce
+        )
+        expected_with_nonce = f"POST\n/api/v1/executions\n1700000000\n{body_hash}\n{nonce}"
+        self.assertEqual(canonical_with_nonce, expected_with_nonce)
 
     def test_canonical_string_with_full_url(self) -> None:
         url = "http://127.0.0.1:8000/api/v1/executions"
@@ -132,13 +141,68 @@ class TestJGAgentClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(headers["X-Agent-ID"], "test-agent-01")
         self.assertIn("X-Timestamp", headers)
         self.assertIn("X-Signature", headers)
+        self.assertIn("X-Nonce", headers)
         self.assertEqual(headers["X-Correlation-ID"], "corr-xyz")
 
-        # Comprobar que la firma en X-Signature sea válida
+        # Comprobar que la firma en X-Signature sea válida incluyendo el nonce (5 componentes)
         ts = int(headers["X-Timestamp"])
-        canonical = compute_canonical_string("POST", "/api/v1/executions", ts, b"test-body")
+        canonical = compute_canonical_string(
+            "POST", "/api/v1/executions", ts, b"test-body", nonce=headers["X-Nonce"]
+        )
         expected_sig = compute_hmac_signature("shared-key", canonical)
         self.assertEqual(headers["X-Signature"], expected_sig)
+        await client.close()
+
+    async def test_hmac_parity_with_and_without_nonce(self) -> None:
+        """Verifica la paridad de firmas con 4 componentes y 5 componentes (X-Nonce)."""
+        client = JGAgentClient(
+            base_url="http://agent.local:8000",
+            agent_id="test-agent-01",
+            secret="shared-key",
+        )
+        # Cabecera con nonce personalizado
+        headers_with_nonce = client._build_signed_headers(
+            method="GET",
+            path="/health",
+            body_bytes=b"",
+            nonce="custom-nonce-1234",
+        )
+        self.assertEqual(headers_with_nonce["X-Nonce"], "custom-nonce-1234")
+        ts = int(headers_with_nonce["X-Timestamp"])
+        expected_with_nonce = compute_hmac_signature(
+            "shared-key",
+            compute_canonical_string("GET", "/health", ts, b"", nonce="custom-nonce-1234"),
+        )
+        self.assertEqual(headers_with_nonce["X-Signature"], expected_with_nonce)
+
+        # Cabecera sin nonce explícito (nonce="")
+        headers_no_nonce = client._build_signed_headers(
+            method="GET",
+            path="/health",
+            body_bytes=b"",
+            nonce="",
+        )
+        self.assertNotIn("X-Nonce", headers_no_nonce)
+        ts_no_nonce = int(headers_no_nonce["X-Timestamp"])
+        expected_no_nonce = compute_hmac_signature(
+            "shared-key",
+            compute_canonical_string("GET", "/health", ts_no_nonce, b""),
+        )
+        self.assertEqual(headers_no_nonce["X-Signature"], expected_no_nonce)
+        await client.close()
+
+    async def test_lazy_client_initialization(self) -> None:
+        """Verifica que el cliente HTTP subyacente no se instancie hasta su uso."""
+        client = JGAgentClient(
+            base_url="http://agent.local:8000",
+            agent_id="test-agent-01",
+            secret="shared-key",
+        )
+        self.assertIsNone(client._client)
+        # Acceder a la propiedad lo inicializa perezosamente
+        http_client = client.client
+        self.assertIsNotNone(http_client)
+        self.assertIs(client._client, http_client)
         await client.close()
 
     async def test_execute_success_with_mock_transport(self) -> None:

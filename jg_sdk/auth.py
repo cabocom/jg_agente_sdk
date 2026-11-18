@@ -36,11 +36,12 @@ def compute_canonical_string(
     path: str,
     timestamp: str | int,
     body_bytes: bytes | None,
+    nonce: str | None = None,
 ) -> str:
     """Construye la cadena canónica normalizada para la firma HMAC-SHA256.
 
     Formato:
-        METHOD\\nPATH\\nTIMESTAMP\\nBODY_SHA256
+        METHOD\nPATH\nTIMESTAMP\nBODY_SHA256[\nNONCE]
     """
     norm_method = method.strip().upper()
     # Si viene una URL completa, extraemos sólo el path
@@ -49,10 +50,13 @@ def compute_canonical_string(
     norm_timestamp = str(timestamp).strip()
     body_hash = compute_body_sha256(body_bytes)
 
-    return f"{norm_method}\n{norm_path}\n{norm_timestamp}\n{body_hash}"
+    canonical = f"{norm_method}\n{norm_path}\n{norm_timestamp}\n{body_hash}"
+    if nonce:
+        canonical += f"\n{nonce.strip()}"
+    return canonical
 
 
-def compute_hmac_signature(secret: str, canonical_string: str) -> str:
+def compute_hmac_signature(secret: str, canonical_string: str, nonce: str | None = None) -> str:
     """Calcula la firma HMAC-SHA256 en formato hexadecimal."""
     return hmac.new(
         key=secret.encode("utf-8"),
@@ -61,7 +65,9 @@ def compute_hmac_signature(secret: str, canonical_string: str) -> str:
     ).hexdigest()
 
 
-def verify_hmac_signature(secret: str, canonical_string: str, received_signature: str) -> bool:
+def verify_hmac_signature(
+    secret: str, canonical_string: str, received_signature: str, nonce: str | None = None
+) -> bool:
     """Compara en tiempo constante la firma recibida con la firma esperada."""
     expected_signature = compute_hmac_signature(secret, canonical_string)
     return hmac.compare_digest(expected_signature.lower(), received_signature.strip().lower())
@@ -75,6 +81,7 @@ def verify_request_signature(
     body_bytes: bytes | None,
     received_signature: str,
     max_skew_seconds: int = DEFAULT_MAX_TIMESTAMP_SKEW_SECONDS,
+    nonce: str | None = None,
 ) -> bool:
     """Verifica la validez de una firma HTTP comprobando también la ventana anti-replay.
 
@@ -86,6 +93,7 @@ def verify_request_signature(
         body_bytes: Cuerpo crudo de la petición.
         received_signature: Firma HMAC enviada en X-Signature.
         max_skew_seconds: Tolerancia máxima en segundos contra replay attacks.
+        nonce: Nonce opcional anti-replay (UUIDv4).
 
     Returns:
         True si la firma es válida y el timestamp está dentro de la ventana de tolerancia.
@@ -99,7 +107,7 @@ def verify_request_signature(
     if abs(current_time - ts_int) > max_skew_seconds:
         return False
 
-    canonical = compute_canonical_string(method, path, ts_int, body_bytes)
+    canonical = compute_canonical_string(method, path, ts_int, body_bytes, nonce=nonce)
     return verify_hmac_signature(secret, canonical, received_signature)
 
 

@@ -15,6 +15,7 @@ Implementa la especificación criptográfica canónica compartida entre el Execu
 
 import json
 import time
+import uuid
 from typing import Any, Self
 
 import httpx
@@ -69,11 +70,17 @@ class JGAgentClient:
         self.secret = secret
         self.timeout = timeout
         self._custom_client = client is not None
-        self._client = client or httpx.AsyncClient(timeout=timeout)
+        self._client: httpx.AsyncClient | None = client
+
+    @property
+    def client(self) -> httpx.AsyncClient:
+        """Devuelve o inicializa perezosamente la instancia de httpx.AsyncClient."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self.timeout)
+        return self._client
 
     async def __aenter__(self) -> Self:
-        if not self._custom_client and self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=self.timeout)
+        _ = self.client
         return self
 
     async def __aexit__(
@@ -86,8 +93,8 @@ class JGAgentClient:
             await self.close()
 
     async def close(self) -> None:
-        """Cierra la sesión HTTP asíncrona subyacente."""
-        if not self._client.is_closed:
+        """Cierra la sesión HTTP asíncrona subyacente si ha sido instanciada."""
+        if self._client is not None and not self._client.is_closed:
             await self._client.aclose()
 
     def _build_signed_headers(
@@ -97,10 +104,14 @@ class JGAgentClient:
         body_bytes: bytes | None,
         correlation_id: str | None = None,
         extra_headers: dict[str, str] | None = None,
+        nonce: str | None = None,
     ) -> dict[str, str]:
         """Calcula y devuelve las cabeceras HTTP firmadas requeridas por el Execution Plane."""
         timestamp = int(time.time())
-        canonical_str = compute_canonical_string(method, path, timestamp, body_bytes)
+        active_nonce = str(uuid.uuid4()) if nonce is None else nonce
+        canonical_str = compute_canonical_string(
+            method, path, timestamp, body_bytes, nonce=active_nonce if active_nonce else None
+        )
         signature = compute_hmac_signature(self.secret, canonical_str)
 
         headers: dict[str, str] = {
@@ -108,6 +119,9 @@ class JGAgentClient:
             "X-Timestamp": str(timestamp),
             "X-Signature": signature,
         }
+
+        if active_nonce:
+            headers["X-Nonce"] = active_nonce
 
         if correlation_id:
             headers["X-Correlation-ID"] = correlation_id
@@ -150,7 +164,7 @@ class JGAgentClient:
         # 3. Despachar petición
         url = f"{self.base_url}{path}"
         try:
-            resp = await self._client.request(
+            resp = await self.client.request(
                 method=method,
                 url=url,
                 content=body_bytes,
