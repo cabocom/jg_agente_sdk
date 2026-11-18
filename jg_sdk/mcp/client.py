@@ -26,7 +26,7 @@ from jg_sdk.mcp.schemas import (
     McpClientError,
     SchemaDriftError,
 )
-from jg_sdk.security.ssrf import SSRFValidator
+from jg_sdk.security.ssrf import SSRFValidationError, SSRFValidator
 from jg_sdk.version import __version__
 
 logger = logging.getLogger("jg_sdk.mcp.client")
@@ -43,6 +43,7 @@ class McpHttpClient:
         transport: httpx.AsyncBaseTransport | None = None,
         ssrf_validator: SSRFValidator | None = None,
         headers: dict[str, str] | None = None,
+        follow_redirects: bool = False,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout_sec = timeout_sec
@@ -50,34 +51,70 @@ class McpHttpClient:
         self._transport = transport
         self._ssrf_validator = ssrf_validator or SSRFValidator()
         self._headers = headers or {}
+        self._follow_redirects = follow_redirects
         self._client: httpx.AsyncClient | None = None
         self._pinned_hashes: dict[str, str] = {}
         self._discovered_tools: dict[str, dict[str, Any]] = {}
         self._initialized = False
 
+    async def _on_response(self, response: httpx.Response) -> None:
+        if response.is_redirect:
+            location = response.headers.get("Location")
+            if location:
+                redirect_url = str(response.url.join(location))
+                is_safe, reason = await self._ssrf_validator.validate_url_async(redirect_url)
+                if not is_safe:
+                    raise SSRFValidationError(
+                        f"Redirección prohibida por política SSRF hacia '{redirect_url}': {reason}",
+                        target=redirect_url,
+                    )
+
     async def _get_client(self) -> httpx.AsyncClient:
         """Inicializa y devuelve el cliente HTTP tras validar la URL contra SSRF."""
         if self._client is None or self._client.is_closed:
-            self._ssrf_validator.assert_safe_url(self.base_url)
+            is_safe, reason = await self._ssrf_validator.validate_url_async(self.base_url)
+            if not is_safe:
+                raise SSRFValidationError(
+                    reason or f"Destino no permitido por SSRF: {self.base_url}",
+                    target=self.base_url,
+                )
             self._client = httpx.AsyncClient(
                 base_url=self.base_url,
                 timeout=self.timeout_sec,
-                follow_redirects=True,
+                follow_redirects=self._follow_redirects,
                 transport=self._transport,
                 headers={"Content-Type": "application/json", **self._headers},
+                event_hooks={"response": [self._on_response]},
             )
         return self._client
+
+    async def _check_response_status(self, response: httpx.Response) -> None:
+        if response.is_redirect or (300 <= response.status_code < 400):
+            location = response.headers.get("Location", "")
+            if location:
+                redirect_url = str(response.url.join(location))
+                is_safe, reason = await self._ssrf_validator.validate_url_async(redirect_url)
+                if not is_safe:
+                    raise SSRFValidationError(
+                        f"Redirección HTTP {response.status_code} prohibida por política SSRF hacia '{redirect_url}': {reason}",
+                        target=redirect_url,
+                    )
+            raise McpClientError(
+                f"Redirección HTTP {response.status_code} no permitida en transporte MCP hacia '{location}'",
+                code=response.status_code,
+            )
+        if response.status_code >= 400:
+            raise McpClientError(
+                f"Error HTTP {response.status_code} del servidor MCP",
+                code=response.status_code,
+            )
 
     async def _send_rpc(self, method: str, params: dict[str, Any] | None = None) -> Any:
         """Envía una llamada JSON-RPC 2.0 y retorna el resultado procesado."""
         client = await self._get_client()
         req = JsonRpcRequest(id=str(uuid.uuid4()), method=method, params=params)
         response = await client.post("", json=req.model_dump(exclude_none=True))
-        if response.status_code >= 400:
-            raise McpClientError(
-                f"Error HTTP {response.status_code} del servidor MCP",
-                code=response.status_code,
-            )
+        await self._check_response_status(response)
         rpc_resp = JsonRpcResponse.model_validate(response.json())
         if rpc_resp.error:
             raise McpClientError(

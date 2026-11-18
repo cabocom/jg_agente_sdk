@@ -114,3 +114,23 @@ def test_custom_allowed_networks() -> None:
     ok, reason = custom_val.validate_ip("10.0.1.5")
     assert ok is False
     assert reason is not None
+
+
+def test_resolve_and_pin_enforce_false() -> None:
+    """Verifica que enforce=False permite fijar URLs locales sin bloqueo."""
+    val = SSRFValidator(enforce=False)
+    ok, reason, pin_info = val.resolve_and_pin_url("http://127.0.0.1:8000/api")
+    assert ok is True
+    assert reason is None
+    assert pin_info is not None
+    assert pin_info["pinned_ip"] == "127.0.0.1"
+
+
+def test_resolve_and_pin_nonexistent_host() -> None:
+    """Verifica que un host inexistente devuelve ok=False sin lanzar excepción no capturada."""
+    val = SSRFValidator(enforce=True)
+    ok, reason, pin_info = val.resolve_and_pin_url("https://nonexistent.invalid/test")
+    assert ok is False
+    assert reason is not None
+    assert "Fallo en resolución DNS" in reason or "gaierror" in reason
+    assert pin_info is None

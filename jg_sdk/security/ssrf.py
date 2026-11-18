@@ -26,47 +26,31 @@ class SSRFValidationError(ValueError):
         self.target = target
 
 
+# fmt: off
 DEFAULT_BLOCKED_NETWORKS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
-    ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("169.254.0.0/16"),
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("0.0.0.0/8"),
-    ipaddress.ip_network("100.64.0.0/10"),
-    ipaddress.ip_network("192.0.0.0/24"),
-    ipaddress.ip_network("192.0.2.0/24"),
-    ipaddress.ip_network("198.18.0.0/15"),
-    ipaddress.ip_network("198.51.100.0/24"),
-    ipaddress.ip_network("203.0.113.0/24"),
-    ipaddress.ip_network("224.0.0.0/4"),
-    ipaddress.ip_network("240.0.0.0/4"),
-    ipaddress.ip_network("255.255.255.255/32"),
-    ipaddress.ip_network("::1/128"),
-    ipaddress.ip_network("::/128"),
-    ipaddress.ip_network("fe80::/10"),
-    ipaddress.ip_network("fc00::/7"),
-    ipaddress.ip_network("ff00::/8"),
+    ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("10.0.0.0/8"), ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"), ipaddress.ip_network("0.0.0.0/8"),
+    ipaddress.ip_network("100.64.0.0/10"), ipaddress.ip_network("192.0.0.0/24"),
+    ipaddress.ip_network("192.0.2.0/24"), ipaddress.ip_network("198.18.0.0/15"),
+    ipaddress.ip_network("198.51.100.0/24"), ipaddress.ip_network("203.0.113.0/24"),
+    ipaddress.ip_network("224.0.0.0/4"), ipaddress.ip_network("240.0.0.0/4"),
+    ipaddress.ip_network("255.255.255.255/32"), ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("::/128"), ipaddress.ip_network("fe80::/10"),
+    ipaddress.ip_network("fc00::/7"), ipaddress.ip_network("ff00::/8"),
     ipaddress.ip_network("2001:db8::/32"),
 ]
 
 DEFAULT_BLOCKED_HOSTNAMES: set[str] = {
-    "localhost",
-    "localhost.localdomain",
-    "ip6-localhost",
-    "ip6-loopback",
-    "metadata.google.internal",
-    "metadata",
-    "instance-data",
+    "localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback",
+    "metadata.google.internal", "metadata", "instance-data",
 }
+# fmt: on
 
 DEFAULT_ALLOWED_SCHEMES: set[str] = {"http", "https"}
 
-RFC1918_NETWORKS: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = (
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("fc00::/7"),
+RFC1918_NETWORKS: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = tuple(
+    ipaddress.ip_network(n) for n in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7")
 )
 
 
@@ -119,9 +103,11 @@ class SSRFValidator:
         self.allow_private_networks = allow_private_networks
         self.enforce = enforce
 
-    def is_ip_allowed_explicitly(self, ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    def _is_ip_allowed_explicitly(self, ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
         """Comprueba si una dirección IP se encuentra en los rangos CIDR autorizados."""
         return any(ip in net for net in self.allowed_networks)
+
+    is_ip_allowed_explicitly = _is_ip_allowed_explicitly
 
     def is_ip_blocked(
         self, ip: ipaddress.IPv4Address | ipaddress.IPv6Address
@@ -132,7 +118,7 @@ class SSRFValidator:
             blocked, reason = self.is_ip_blocked(mapped)
             return (True, f"{reason} (IPv4 mapeada: {ip})") if blocked else (False, None)
 
-        if self.is_ip_allowed_explicitly(ip):
+        if self._is_ip_allowed_explicitly(ip):
             return False, None
 
         for blocked_net in DEFAULT_BLOCKED_NETWORKS:
@@ -181,8 +167,6 @@ class SSRFValidator:
         return await asyncio.to_thread(self.resolve_host, hostname, port)
 
     def _pre_validate_url(self, url: str) -> tuple[bool, str | None, Any, str | None]:
-        if not self.enforce:
-            return True, None, None, None
         if not url or not isinstance(url, str):
             return False, "URL vacía o de tipo incorrecto", None, None
         parsed = urlparse(url.strip())
@@ -197,6 +181,8 @@ class SSRFValidator:
         hostname = parsed.hostname
         if not hostname:
             return False, f"URL sin hostname válido: '{url}'", None, None
+        if not self.enforce:
+            return True, None, parsed, hostname
         if self.is_host_allowed_explicitly(hostname):
             return True, None, parsed, hostname
         if hostname.lower() in DEFAULT_BLOCKED_HOSTNAMES or any(
@@ -237,11 +223,47 @@ class SSRFValidator:
         """Valida una URL de forma asíncrona."""
         return await asyncio.to_thread(self.validate_url, url, resolve_dns)
 
+    def _handle_unforced_pin(
+        self, parsed: Any, hostname: str
+    ) -> tuple[bool, str | None, dict[str, Any] | None]:
+        try:
+            ip_obj = ipaddress.ip_address(hostname)
+            chosen_ip = str(ip_obj)
+        except ValueError:
+            try:
+                port = parsed.port or (443 if parsed.scheme == "https" else 80)
+                ips = self.resolve_host(hostname, port)
+                chosen_ip = ips[0] if ips else "127.0.0.1"
+            except Exception:
+                chosen_ip = "127.0.0.1"
+        return True, None, _build_pinned_info(parsed, hostname, chosen_ip)
+
+    def _resolve_and_check_dns(
+        self, parsed: Any, hostname: str
+    ) -> tuple[bool, str | None, dict[str, Any] | None]:
+        try:
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            ips = self.resolve_host(hostname, port)
+            if not ips:
+                return False, f"No se obtuvieron direcciones IP para '{hostname}'", None
+        except SSRFValidationError as exc:
+            return False, str(exc), None
+        except Exception as exc:
+            return False, f"Fallo en resolución DNS para '{hostname}': {exc}", None
+
+        for ip_str in ips:
+            blocked, b_reason = self.is_ip_blocked(ipaddress.ip_address(ip_str))
+            if blocked:
+                return False, f"Resolución DNS '{hostname}' vulnera política: {b_reason}", None
+        return True, None, _build_pinned_info(parsed, hostname, ips[0])
+
     def resolve_and_pin_url(self, url: str) -> tuple[bool, str | None, dict[str, Any] | None]:
         """Valida la URL y genera metadatos de fijado de IP para mitigar DNS Rebinding."""
         ok, reason, parsed, hostname = self._pre_validate_url(url)
         if not ok or not hostname or parsed is None:
             return False, reason, None
+        if not self.enforce:
+            return self._handle_unforced_pin(parsed, hostname)
         try:
             ip_obj = ipaddress.ip_address(hostname)
             blocked, b_reason = self.is_ip_blocked(ip_obj)
@@ -250,13 +272,7 @@ class SSRFValidator:
             return True, None, _build_pinned_info(parsed, hostname, str(ip_obj))
         except ValueError:
             pass
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        ips = self.resolve_host(hostname, port)
-        for ip_str in ips:
-            blocked, b_reason = self.is_ip_blocked(ipaddress.ip_address(ip_str))
-            if blocked:
-                return False, f"Resolución DNS '{hostname}' vulnera política: {b_reason}", None
-        return True, None, _build_pinned_info(parsed, hostname, ips[0])
+        return self._resolve_and_check_dns(parsed, hostname)
 
     async def resolve_and_pin_url_async(
         self, url: str
@@ -270,8 +286,10 @@ class SSRFValidator:
         if not is_safe:
             raise SSRFValidationError(reason or "Destino no permitido por SSRF", target=url)
 
-    def assert_safe_ip(self, ip_str: str) -> None:
+    def _assert_safe_ip(self, ip_str: str) -> None:
         """Lanza SSRFValidationError si la dirección IP no es segura."""
         is_safe, reason = self.validate_ip(ip_str)
         if not is_safe:
             raise SSRFValidationError(reason or "Dirección IP no permitida por SSRF", target=ip_str)
+
+    assert_safe_ip = _assert_safe_ip

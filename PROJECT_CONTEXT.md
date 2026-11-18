@@ -1,10 +1,10 @@
 # CONTEXTO DE PROYECTO: jg_agente_sdk
 
-**Versión del documento:** 2.0.1  
+**Versión del documento:** 2.0.2  
 **Fecha de consolidación:** 18 de noviembre de 2026  
 **Componente:** SDK Público de Desarrollo y Biblioteca Cliente (Plugin Development & Execution Client)  
 **Stack Tecnológico:** Python >= 3.11, Pydantic v2, HTTPX, Setuptools, Ruff, Pytest  
-**Estado:** Producción / Consolidado como Fuente Única de Verdad (SSOT) y 100% certificado bajo SOLID v2.0 (0 archivos > 300 LOC). Fases 1, 2 y Fase MCP completadas: soporte nativo para herramientas asíncronas (`AgentTool.run_async()`, `MockPluginRunner.run_tool_async`), módulo unificado de mitigación SSRF y DNS Pinning (`jg_sdk.security.ssrf`), e implementación del cliente nativo MCP (`jg_sdk.mcp.McpHttpClient`) con Streamable HTTP, JSON-RPC 2.0 y *Schema Pinning* determinista SHA-256. Versión canónica centralizada en `jg_sdk.version.__version__` sincronizada con CLI parser y cliente MCP. Plantilla `.gitignore` en scaffolding de plugins endurecida para proteger `.env` y `.env.*` (ISSUE-01 / GitLab #13). Suite completa de 72 tests pasando al 100% y Ruff limpio sin infracciones. Sincronizado automáticamente como *mirror* público hacia `https://github.com/cabocom/jg_agente_sdk` (`workspace#8`).  
+**Estado:** Producción / Consolidado como Fuente Única de Verdad (SSOT) y 100% certificado bajo SOLID v2.0 (0 archivos > 300 LOC). Fases 1, 2 y Fase MCP completadas: soporte nativo para herramientas asíncronas (`AgentTool.run_async()`, `MockPluginRunner.run_tool_async`), módulo unificado de mitigación SSRF y DNS Pinning (`jg_sdk.security.ssrf`), e implementación del cliente nativo MCP (`jg_sdk.mcp.McpHttpClient`) con Streamable HTTP, JSON-RPC 2.0 y *Schema Pinning* determinista SHA-256. Versión canónica centralizada en `jg_sdk.version.__version__` sincronizada con CLI parser y cliente MCP. Plantilla `.gitignore` en scaffolding de plugins endurecida para proteger `.env` y `.env.*` (ISSUE-01 / GitLab #13). Endurecimiento SSRF en `resolve_and_pin_url` (corrección de falso bloqueo con `enforce=False`, captura limpia de errores DNS), métodos públicos de `SSRFValidator` limitados a <= 10, y bloqueo estricto de redirecciones SSRF HTTP 302 en `McpHttpClient` hacia rangos restringidos y metadatos (ISSUE-02 / GitLab #14). Suite completa de 76 tests pasando al 100% y Ruff limpio sin infracciones. Sincronizado automáticamente como *mirror* público hacia `https://github.com/cabocom/jg_agente_sdk` (`workspace#8`).  
 - **Fuente Única de Verdad (SSOT):** Define todos los contratos públicos canónicos del ecosistema (`AgentTool`, `ToolResult`, `RiskLevel`, `ToolType`, `ExecutionStatus`, `BasePlugin`, `BaseEngine`, `PluginMetadata`, `AgentInput`, `AgentOutput`).
 - **Soporte de Internacionalización (i18n):**
   * `AgentInput`: Campo `locale: str = Field(default="es")` para propagar el idioma de la interacción.
@@ -84,7 +84,7 @@ jg_agente_sdk/
 │   │   └── ssrf.py         # Validador SSRF, rangos bloqueados, DNS Pinning y resolución segura
 │   ├── version.py          # Fuente canónica de la versión del SDK (__version__)
 │   └── py.typed            # Marcador PEP 561 de tipado estático
-├── tests/                  # Suite de 72 tests unitarios (CLI, HMAC, contratos, async, SSRF, MCP)
+├── tests/                  # Suite de 76 tests unitarios (CLI, HMAC, contratos, async, SSRF, MCP)
 ├── docs/                   # Documentación técnica multilingüe (es/en) y resolución de issues
 │   ├── README.md           # Índice de navegación entre idiomas
 │   ├── es/                 # Documentación canónica en español (SSOT)

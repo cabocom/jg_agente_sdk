@@ -5,6 +5,7 @@
 - **Asignado a:** `cabocom` / Javier Gálvez (`assignee_ids: [553306]`)
 - **Milestone:** `QA & Anti-Fallback Hardening (Nov-Dic 2026)`
 - **Labels:** `qa-audit, priority::critical, security, bug`
+- **Estado:** `RESUELTO` (Verificado y aprobado por QA `hydrogen`)
 - **GitLab Issue Remoto:** [jg_agente_sdk#14](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/work_items/14)
 
 ---
@@ -37,7 +38,12 @@
   2. En `McpHttpClient._get_client` (`jg_sdk/mcp/client.py:57-67`), utilizar `await self._ssrf_validator.validate_url_async(self.base_url)` (no bloqueante) y fijar `follow_redirects=False` (o validar cada redirección mediante event hook de `httpx`).
   3. Reducir los métodos públicos de `SSRFValidator` a `<= 10` conforme a la Regla 8.1 de `AGENTS.md`.
 - **Criterios de Aceptación (Checklist verificable):**
-  - [ ] `resolve_and_pin_url("http://127.0.0.1:8000")` con `enforce=False` retorna `ok=True`.
-  - [ ] `resolve_and_pin_url("https://nonexistent.invalid")` retorna `(False, reason, None)` sin lanzar `SSRFValidationError` no capturada.
-  - [ ] `McpHttpClient` rechaza redirecciones HTTP 302 hacia `http://169.254.169.254` o `http://127.0.0.1`.
-  - [ ] Nuevos tests en `tests/test_ssrf_shared.py` y `tests/test_mcp_client.py` pasan al 100%.
+  - [x] `resolve_and_pin_url("http://127.0.0.1:8000")` con `enforce=False` retorna `ok=True`.
+  - [x] `resolve_and_pin_url("https://nonexistent.invalid")` retorna `(False, reason, None)` sin lanzar `SSRFValidationError` no capturada.
+  - [x] `McpHttpClient` rechaza redirecciones HTTP 302 hacia `http://169.254.169.254` o `http://127.0.0.1`.
+  - [x] Nuevos tests en `tests/test_ssrf_shared.py` y `tests/test_mcp_client.py` pasan al 100%.
+
+- **Resolución y Cierre:**
+  - **Commit:** `fix(security): corregir falso bloqueo enforce=False, dns catch y ssrf redirects en mcp (Closes #14)`
+  - **Validación QA:** Aprobado unánimemente por auditor QA `hydrogen` (`[QA-APPROVED] ISSUE-02`).
+  - **Linters y Tests:** Ruff 100% limpio, 76/76 tests unitarios pasando.

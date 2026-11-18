@@ -194,6 +194,52 @@ async def test_ssrf_blocking_private_base_url() -> None:
         await client.initialize()
 
 
+@pytest.mark.asyncio
+async def test_mcp_client_rejects_ssrf_redirect_metadata() -> None:
+    """Verifica que redirecciones HTTP 302 a IP de metadatos cloud son bloqueadas."""
+
+    def handle_redirect(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            302,
+            headers={"Location": "http://169.254.169.254/latest/meta-data/"},
+            request=request,
+        )
+
+    transport = httpx.MockTransport(handle_redirect)
+    validator = SSRFValidator(allowed_hosts=["api.mockmcp.com"])
+    client = McpHttpClient(
+        base_url="https://api.mockmcp.com",
+        transport=transport,
+        ssrf_validator=validator,
+        follow_redirects=False,
+    )
+    with pytest.raises(SSRFValidationError, match="Redirección.*prohibida"):
+        await client.initialize()
+
+
+@pytest.mark.asyncio
+async def test_mcp_client_rejects_ssrf_redirect_localhost() -> None:
+    """Verifica que redirecciones HTTP 302 a loopback son bloqueadas con follow_redirects=True."""
+
+    def handle_redirect(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            302,
+            headers={"Location": "http://127.0.0.1:8080/internal"},
+            request=request,
+        )
+
+    transport = httpx.MockTransport(handle_redirect)
+    validator = SSRFValidator(allowed_hosts=["api.mockmcp.com"])
+    client = McpHttpClient(
+        base_url="https://api.mockmcp.com",
+        transport=transport,
+        ssrf_validator=validator,
+        follow_redirects=True,
+    )
+    with pytest.raises(SSRFValidationError, match="Redirección.*prohibida"):
+        await client.initialize()
+
+
 def test_serialization_primitives_safety() -> None:
     """Verifica que la salida normalizada sea serializable a JSON estándar sin errores."""
     from jg_sdk.mcp.normalizer import normalize_to_json_primitives
