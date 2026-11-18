@@ -620,3 +620,53 @@ def test_cli_clean_and_contextual_status(
     assert ret_status_after == 0
     captured_status_after = capsys.readouterr()
     assert "ESTADO LIMPIO" in captured_status_after.out
+
+
+def test_gitignore_template_protects_env_secrets(tmp_path: Path):
+    """Verifica que get_gitignore_template y jg init incluyan protección de variables de entorno."""
+    from jg_sdk.cli.templates.config import get_gitignore_template
+
+    template = get_gitignore_template()
+    assert ".env" in template
+    assert ".env.*" in template
+    assert "!.env.example" in template
+
+    target_dir = tmp_path / "jg_plugin_secenv"
+    generate_plugin_scaffold(
+        name="secenv",
+        target_dir=target_dir,
+        template="minimal",
+    )
+    gitignore_path = target_dir / ".gitignore"
+    assert gitignore_path.is_file()
+    content = gitignore_path.read_text(encoding="utf-8")
+    assert ".env" in content
+    assert ".env.*" in content
+    assert "!.env.example" in content
+
+
+def test_cli_version_and_mcp_client_version_sync(capsys: pytest.CaptureFixture):
+    """Verifica que el parser CLI (--version) y McpHttpClient usen jg_sdk.__version__."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+
+    from jg_sdk import __version__
+    from jg_sdk.cli.parser import create_cli_parser
+    from jg_sdk.mcp.client import McpHttpClient
+
+    parser = create_cli_parser("jg")
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--version"])
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    output = captured.out + captured.err
+    assert f"jg {__version__}" in output
+
+    mcp_client = McpHttpClient("http://localhost:8080")
+    with patch.object(mcp_client, "_send_rpc", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = {"serverInfo": {"name": "test_server"}}
+        asyncio.run(mcp_client.initialize())
+        mock_send.assert_called_once()
+        sent_payload = mock_send.call_args[0][1]
+        assert sent_payload["clientInfo"]["version"] == __version__
+        assert sent_payload["clientInfo"]["name"] == "jg_agente_sdk"

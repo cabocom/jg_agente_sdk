@@ -27,6 +27,7 @@ from jg_sdk.mcp.schemas import (
     SchemaDriftError,
 )
 from jg_sdk.security.ssrf import SSRFValidator
+from jg_sdk.version import __version__
 
 logger = logging.getLogger("jg_sdk.mcp.client")
 
@@ -91,7 +92,7 @@ class McpHttpClient:
         payload = {
             "protocolVersion": protocol_version,
             "capabilities": {},
-            "clientInfo": {"name": "jg_agente_sdk", "version": "1.3.0"},
+            "clientInfo": {"name": "jg_agente_sdk", "version": __version__},
         }
         result = await self._send_rpc("initialize", payload)
         self._initialized = True

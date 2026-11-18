@@ -64,6 +64,11 @@ def get_gitignore_template() -> str:
 env/
 venv/
 
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
+
 # Bytecode y caches
 __pycache__/
 *.py[cod]

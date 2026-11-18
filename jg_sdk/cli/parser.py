@@ -12,6 +12,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from jg_sdk.version import __version__
+
 
 def configure_init_args(target_parser: argparse.ArgumentParser) -> None:
     """Configura los argumentos del comando 'init'."""
@@ -260,7 +262,7 @@ def create_cli_parser(prog_name: str = "jg") -> argparse.ArgumentParser:
         prog=prog_name,
         description="CLI para desarrollo y scaffolding de plugins en la plataforma jg_agente.",
     )
-    parser.add_argument("--version", action="version", version=f"{prog_name} 1.3.0")
+    parser.add_argument("--version", action="version", version=f"{prog_name} {__version__}")
     subparsers = parser.add_subparsers(dest="subcommand", help="Comandos disponibles")
     _configure_subcommand_parsers(subparsers)
     return parser

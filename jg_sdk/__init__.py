@@ -69,8 +69,7 @@ from jg_sdk.security import (
     SSRFValidator,
 )
 from jg_sdk.testing import MockPluginRunner
-
-__version__ = "2.0.0"
+from jg_sdk.version import __version__
 
 __all__ = [
     # Version
