@@ -16,6 +16,7 @@ from pathlib import Path
 import httpx
 
 from jg_sdk.cli.common import (
+    DEFAULT_AGENT_PORTS,
     _detect_plugin_info,
     _find_matching_containers,
 )
@@ -56,15 +57,14 @@ def _inspect_plugin_containers(containers: list[str]) -> list[str]:
 
 def _check_runtime_health(running_containers: list[str], raw_slug: str) -> None:
     """Verifica el endpoint /health y /capabilities del agente."""
-    known_ports = {"devops": 8922, "conversacional": 8921, "sales": 8873, "datosgob": 8881}
-    candidate_port = known_ports.get(raw_slug, 8881)
+    candidate_port = DEFAULT_AGENT_PORTS.get(raw_slug, 8881)
     for c in running_containers:
         try:
             res_port = subprocess.run(["docker", "port", c, "8000"], capture_output=True, text=True)
             if res_port.returncode == 0 and res_port.stdout.strip():
                 candidate_port = int(res_port.stdout.strip().split(":")[-1])
                 break
-        except Exception:
+        except (subprocess.SubprocessError, OSError, ValueError):
             pass
 
     try:
@@ -80,11 +80,11 @@ def _check_runtime_health(running_containers: list[str], raw_slug: str) -> None:
                     print(
                         f"     └─► Capacidades: {cd.get('plugins_count', 0)} plugins | {cd.get('tools_count', 0)} tools"
                     )
-            except Exception:
+            except (httpx.RequestError, httpx.HTTPError, ValueError):
                 pass
         else:
             print(f"  ⚠️  Runtime API:            HTTP {r.status_code}")
-    except Exception:
+    except (httpx.RequestError, httpx.HTTPError):
         print(f"  ⚪ Runtime API:            OFFLINE (puerto {candidate_port})")
 
 
@@ -118,7 +118,7 @@ def _handle_plugin_status(
         if p.is_symlink():
             try:
                 symlink_found = (p, str(p.readlink()))
-            except Exception:
+            except OSError:
                 symlink_found = (p, str(p.resolve()))
             break
 
@@ -149,9 +149,12 @@ def _handle_global_status() -> int:
     services = [
         ("Portal & Docs (jg_hub)", "http://localhost:8930/up"),
         ("Dashboard (Control Plane)", "http://localhost:8003/up"),
-        ("Agente Conversacional", "http://localhost:8921/health"),
-        ("Agente DevOps", "http://localhost:8922/health"),
-        ("Agente Sales", "http://localhost:8873/health"),
+        (
+            "Agente Conversacional",
+            f"http://localhost:{DEFAULT_AGENT_PORTS.get('conversacional', 8001)}/health",
+        ),
+        ("Agente DevOps", f"http://localhost:{DEFAULT_AGENT_PORTS.get('devops', 8002)}/health"),
+        ("Agente Sales", f"http://localhost:{DEFAULT_AGENT_PORTS.get('sales', 8873)}/health"),
         ("Filmmaker Web", "http://localhost:8010/up"),
         ("Dashboard Autónomo (Plugins)", "http://localhost:8880/up"),
         ("Agente Autónomo (Plugins)", "http://localhost:8881/health"),
@@ -168,7 +171,7 @@ def _handle_global_status() -> int:
                 print(f"  ✅ {name:<30} ONLINE  ({url})")
             else:
                 print(f"  ⚠️  {name:<30} HTTP {r.status_code} ({url})")
-        except Exception:
+        except (httpx.RequestError, httpx.HTTPError):
             print(f"  ⚪ {name:<30} OFFLINE ({url})")
 
     print("=" * 65)

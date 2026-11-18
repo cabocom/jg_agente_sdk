@@ -148,7 +148,7 @@ def _create_or_replace_symlink(
             f"   🔗 {symlink_path} -> {link_display}\n"
             f"   Directorio del agente: {target_plugins}",
         )
-    except Exception as exc:
+    except OSError as exc:
         return 1, f"❌ Fallo al crear el enlace simbólico: {exc}"
 
 
@@ -207,7 +207,7 @@ def unlink_plugin(
     try:
         target.unlink()
         return 0, f"🗑️  Enlace simbólico '{plugin_name}' desvinculado con éxito de: {target_plugins}"
-    except Exception as exc:
+    except OSError as exc:
         return 1, f"❌ Fallo al eliminar enlace simbólico: {exc}"
 
 

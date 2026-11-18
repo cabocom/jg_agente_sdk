@@ -5,6 +5,7 @@
 - **Asignado a:** `cabocom` / Javier Gálvez (`assignee_ids: [553306]`)
 - **Milestone:** `QA & Anti-Fallback Hardening (Nov-Dic 2026)`
 - **Labels:** `qa-audit, priority::high, dry, sonar-debt, solid`
+- **Estado:** `RESUELTO` (Verificado y aprobado por QA `hydrogen`)
 - **GitLab Issue Remoto:** [jg_agente_sdk#16](https://gitlab.com/javiergalvez-ia/jg_agente_sdk/-/work_items/16)
 
 ---
@@ -20,7 +21,12 @@
   1. Extraer un único helper de resolución de `pyproject.toml` y directorio de paquete en `cli/common.py`, reduciendo `_detect_plugin_info` a `<= 40` líneas.
   2. Reemplazar la cadena `if/elif` de `_dispatch_command` por un diccionario de despacho; unificar el mapa de puertos de agentes entre `reload_cmd.py` y `status_cmd.py`; verificar `returncode` en `_ensure_venv`; y eliminar la llamada directa a `php artisan tinker` sobre `\App\Models\Agent` en `dev_cmd.py:188-204`.
 - **Criterios de Aceptación (Checklist verificable):**
-  - [ ] Ninguna función en `jg_sdk/cli/` supera `C901 > 10` ni contiene `except Exception: pass` sin logging/tipado específico.
-  - [ ] `ruff check .` y `pytest` pasan sin errores en `jg_agente_sdk`.
+  - [x] Ninguna función en `jg_sdk/cli/` supera `C901 > 10` ni contiene `except Exception: pass` sin logging/tipado específico.
+  - [x] `ruff check .` y `pytest` pasan sin errores en `jg_agente_sdk`.
+
+- **Resolución y Cierre:**
+  - **Commit:** `refactor(cli): unificar deteccion de paquetes, eliminar acoplamiento eloquent y limpiar silent catches (Closes #16)`
+  - **Validación QA:** Aprobado unánimemente por auditor QA `hydrogen` (`[QA-APPROVED] ISSUE-04`).
+  - **Linters y Tests:** Ruff 100% limpio (C901 <= 10 en toda la CLI, cero S110/BLE001), 78/78 tests unitarios pasando.
 
 ---

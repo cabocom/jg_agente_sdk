@@ -31,6 +31,61 @@ def _sanitize_name(name: str) -> str:
     return clean
 
 
+DEFAULT_AGENT_PORTS: dict[str, int] = {
+    "conversacional": 8001,
+    "devops": 8002,
+    "sales": 8873,
+    "datosgob": 8881,
+    "filmmaker": 8881,
+}
+
+KNOWN_AGENTS: list[tuple[str, str, int, str]] = [
+    ("conversacional", "jg_agente_conversacional", 8001, "Agente Conversacional"),
+    ("devops", "jg_agente_devops", 8002, "Agente DevOps"),
+    ("sales", "jg_agente_sales", 8873, "Agente Sales"),
+    ("datosgob", "jg_agente_datosgob", 8881, "Agente Datos Gob"),
+]
+
+
+def _inspect_pyproject_plugin(pyproject_path: Path) -> tuple[bool, str]:
+    """Inspecciona pyproject.toml para detectar entrypoint o nombre de plugin."""
+    if not pyproject_path.is_file():
+        return False, ""
+    try:
+        content = pyproject_path.read_text(encoding="utf-8", errors="ignore")
+    except (OSError, UnicodeDecodeError):
+        return False, ""
+
+    is_plugin = any(
+        ep in content
+        for ep in (
+            '[project.entry-points."jg_agente.plugins"]',
+            "[project.entry-points.'jg_agente.plugins']",
+        )
+    )
+    pkg_name = ""
+    match = re.search(r'name\s*=\s*["\']([^"\']+)["\']', content)
+    if match:
+        val = match.group(1).replace("-", "_")
+        if val.startswith("jg_plugin_") or val.startswith("jg-plugin-"):
+            is_plugin = True
+            pkg_name = val
+    return is_plugin, pkg_name
+
+
+def _find_child_with_plugin(dir_path: Path) -> Path | None:
+    """Busca un subdirectorio que contenga plugin.py."""
+    if not dir_path.is_dir():
+        return None
+    try:
+        for child in dir_path.iterdir():
+            if child.is_dir() and (child / "plugin.py").is_file():
+                return child
+    except OSError:
+        pass
+    return None
+
+
 def _detect_plugin_info(start_path: Path | None = None) -> tuple[bool, Path | None, str, str]:
     """Detecta si una ruta corresponde a un plugin del ecosistema jg_agente.
 
@@ -38,63 +93,27 @@ def _detect_plugin_info(start_path: Path | None = None) -> tuple[bool, Path | No
         tuple[is_plugin, plugin_root, plugin_name, raw_slug]
     """
     curr = (start_path or Path.cwd()).resolve()
-    candidates = [curr, *curr.parents]
+    excluded = {"jg_agente_sdk", "jg_agente", "jg_hub", "jg_dashboard", "jg_filmmaker"}
 
-    for candidate in candidates:
-        if candidate.name in (
-            "jg_agente_sdk",
-            "jg_agente",
-            "jg_hub",
-            "jg_dashboard",
-            "jg_filmmaker",
-        ):
+    for candidate in [curr, *curr.parents]:
+        if candidate.name in excluded:
             continue
 
-        is_plugin = False
-        pkg_name = ""
+        is_plugin = candidate.name.startswith("jg_plugin_")
+        pkg_name = candidate.name if is_plugin else ""
 
-        # 1. Por convención de nombre de directorio
-        if candidate.name.startswith("jg_plugin_"):
-            is_plugin = True
-            pkg_name = candidate.name
+        p_plugin, p_name = _inspect_pyproject_plugin(candidate / "pyproject.toml")
+        is_plugin = is_plugin or p_plugin
+        pkg_name = pkg_name or p_name
 
-        # 2. Por pyproject.toml con entrypoint de plugins o nombre del paquete
-        pyproject = candidate / "pyproject.toml"
-        if pyproject.is_file():
-            try:
-                content = pyproject.read_text(encoding="utf-8", errors="ignore")
-                for line in content.splitlines():
-                    cleaned_line = line.strip()
-                    if cleaned_line.startswith(
-                        '[project.entry-points."jg_agente.plugins"]'
-                    ) or cleaned_line.startswith("[project.entry-points.'jg_agente.plugins']"):
-                        is_plugin = True
-                    if (
-                        cleaned_line.startswith("name =") or cleaned_line.startswith("name=")
-                    ) and not pkg_name:
-                        val = cleaned_line.split("=")[1].strip().strip('"').strip("'")
-                        if val.startswith("jg-plugin-") or val.startswith("jg_plugin_"):
-                            is_plugin = True
-                            pkg_name = val.replace("-", "_")
-            except Exception:
-                pass
-
-        # 3. Por presencia de plugin.py en subcarpeta
-        if not is_plugin and candidate.is_dir():
-            try:
-                for child in candidate.iterdir():
-                    if child.is_dir() and (child / "plugin.py").is_file():
-                        is_plugin = True
-                        if not pkg_name:
-                            pkg_name = child.name
-                        break
-            except Exception:
-                pass
+        if not is_plugin:
+            child = _find_child_with_plugin(candidate)
+            if child is not None:
+                is_plugin = True
+                pkg_name = pkg_name or child.name
 
         if is_plugin:
-            if not pkg_name:
-                pkg_name = candidate.name
-            pkg_name = _sanitize_name(pkg_name)
+            pkg_name = _sanitize_name(pkg_name or candidate.name)
             if (
                 not pkg_name.startswith("jg_plugin_")
                 and (candidate / f"jg_plugin_{pkg_name}").exists()
@@ -134,7 +153,7 @@ def _find_matching_containers(raw_slug: str, plugin_name: str) -> list[str]:
             ) and name not in matched:
                 matched.append(name)
         return matched
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         return []
 
 
@@ -152,28 +171,18 @@ def _find_plugin_root() -> Path:
 
 def _detect_package_dir_and_name(source: Path) -> tuple[Path | None, str]:
     """Detecta el directorio del paquete Python y su nombre a partir de una ruta fuente."""
-    package_dir: Path | None = None
-    package_name: str = ""
-
     if (source / "plugin.py").is_file():
-        package_dir = source
-        package_name = source.name
-    elif source.is_dir():
-        for child in source.iterdir():
-            if child.is_dir() and (child / "plugin.py").is_file():
-                package_dir = child
-                package_name = child.name
-                break
+        return source, source.name
 
-    pyproject = source / "pyproject.toml"
-    if pyproject.is_file():
-        content = pyproject.read_text(encoding="utf-8", errors="ignore")
-        match = re.search(r'name\s*=\s*["\']([^"\']+)["\']', content)
-        if match and not package_name:
-            pkg_name_from_pyproject = match.group(1).replace("-", "_")
-            package_name = pkg_name_from_pyproject
-            if (source / pkg_name_from_pyproject).is_dir():
-                package_dir = source / pkg_name_from_pyproject
+    child = _find_child_with_plugin(source)
+    package_dir = child
+    package_name = child.name if child is not None else ""
+
+    _, p_name = _inspect_pyproject_plugin(source / "pyproject.toml")
+    if p_name and not package_name:
+        package_name = p_name
+        if (source / p_name).is_dir():
+            package_dir = source / p_name
 
     if package_dir and not package_name:
         package_name = package_dir.name

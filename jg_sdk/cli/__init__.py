@@ -22,7 +22,7 @@ from jg_sdk.cli.common import (
     _sanitize_name,
     _to_pascal_case,
 )
-from jg_sdk.cli.dev_cmd import handle_dev, handle_install, handle_test
+from jg_sdk.cli.dev_cmd import handle_dev, handle_install, handle_run, handle_test
 from jg_sdk.cli.init_cmd import generate_plugin_scaffold
 from jg_sdk.cli.link_cmd import (
     handle_link,
@@ -101,7 +101,7 @@ def _dispatch_init(args: argparse.Namespace) -> int:
     except FileExistsError as exc:
         print(f"❌ Error: {exc}", file=sys.stderr)
         return 1
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         print(f"❌ Error al generar el plugin: {exc}", file=sys.stderr)
         return 2
 
@@ -110,35 +110,25 @@ def _dispatch_command(args: argparse.Namespace) -> int:
     """Enruta el comando seleccionado a su función correspondiente."""
     sub = args.subcommand
     plugin_sub = getattr(args, "plugin_subcommand", None)
+    target = plugin_sub if sub == "plugin" else sub
 
-    if sub == "install":
-        return handle_install()
-    if sub == "dev":
-        raw_cmd = args.command
-        if raw_cmd and raw_cmd[0] == "--":
-            raw_cmd = raw_cmd[1:]
-        return handle_dev(raw_cmd)
-    if sub == "build" or (sub == "plugin" and plugin_sub == "build"):
-        return handle_build(args)
-    if sub == "run":
-        from jg_sdk.cli.dev_cmd import handle_run
-
-        return handle_run(args)
-    if sub == "reload" or (sub == "plugin" and plugin_sub == "reload"):
-        return handle_reload(args)
-    if sub == "status" or (sub == "plugin" and plugin_sub == "status"):
-        return handle_status(args)
-    if sub == "clean" or (sub == "plugin" and plugin_sub == "clean"):
-        return handle_clean(args)
-    if sub == "test":
-        return handle_test(args)
-    if sub == "link" or (sub == "plugin" and plugin_sub == "link"):
-        return handle_link(args)
-    if sub == "unlink" or (sub == "plugin" and plugin_sub == "unlink"):
-        return handle_unlink(args)
-    if (sub == "plugin" and plugin_sub == "init") or sub == "init":
-        return _dispatch_init(args)
-    return 0
+    handlers = {
+        "install": lambda _a: handle_install(),
+        "dev": lambda a: handle_dev(
+            a.command[1:] if a.command and a.command[0] == "--" else a.command
+        ),
+        "build": handle_build,
+        "run": handle_run,
+        "reload": handle_reload,
+        "status": handle_status,
+        "clean": handle_clean,
+        "test": handle_test,
+        "link": handle_link,
+        "unlink": handle_unlink,
+        "init": _dispatch_init,
+    }
+    handler = handlers.get(target)
+    return handler(args) if handler else 0
 
 
 def main(argv: list[str] | None = None) -> int:

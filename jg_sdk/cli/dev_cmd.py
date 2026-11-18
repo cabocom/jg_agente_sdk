@@ -51,12 +51,27 @@ def _ensure_venv(plugin_root: Path) -> Path:
         install_script = plugin_root / "install.sh"
         if install_script.exists():
             print(f"🚀 Ejecutando script de instalación {install_script.name}...")
-            subprocess.run(["bash", str(install_script)], cwd=plugin_root)
+            res = subprocess.run(["bash", str(install_script)], cwd=plugin_root)
+            if res.returncode != 0:
+                print(
+                    f"❌ Error al ejecutar {install_script.name} (código {res.returncode})",
+                    file=sys.stderr,
+                )
         else:
             print("⚙️ Creando entorno virtual .venv...")
-            subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], cwd=plugin_root)
+            res_venv = subprocess.run(
+                [sys.executable, "-m", "venv", str(venv_dir)], cwd=plugin_root
+            )
+            if res_venv.returncode != 0:
+                print(f"❌ Error al crear .venv (código {res_venv.returncode})", file=sys.stderr)
+                return venv_dir
             pip_bin = venv_dir / "bin" / "pip"
-            subprocess.run([str(pip_bin), "install", "-e", "."], cwd=plugin_root)
+            res_pip = subprocess.run([str(pip_bin), "install", "-e", "."], cwd=plugin_root)
+            if res_pip.returncode != 0:
+                print(
+                    f"❌ Error al instalar dependencias (código {res_pip.returncode})",
+                    file=sys.stderr,
+                )
     return venv_dir
 
 
@@ -92,7 +107,7 @@ def handle_dev(command: list[str] | None = None) -> int:
         res = subprocess.run([shell], env=new_env, cwd=plugin_root)
         print("\n👋 Saliste del entorno de desarrollo.")
         return res.returncode
-    except Exception as exc:
+    except (OSError, RuntimeError) as exc:
         print(f"❌ Error al iniciar subshell: {exc}", file=sys.stderr)
         return 1
 
@@ -133,40 +148,17 @@ def _print_run_summary(effective_dashboard_port: str, effective_agent_port: str)
     print("=" * 65)
 
 
-def handle_run(args: argparse.Namespace) -> int:
-    """Lanza o gestiona el entorno Docker Compose autónomo del plugin."""
-    plugin_root = _find_plugin_root()
-    compose_file: Path | None = None
+def _find_compose_file(plugin_root: Path) -> Path | None:
+    """Busca el archivo de configuración Docker Compose en la raíz del plugin."""
     for candidate in ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]:
         p = plugin_root / candidate
         if p.exists():
-            compose_file = p
-            break
+            return p
+    return None
 
-    if not compose_file:
-        print(f"❌ No se encontró 'docker-compose.yml' en {plugin_root}.", file=sys.stderr)
-        return 1
 
-    if getattr(args, "down", False):
-        print("🛑 Deteniendo entorno Docker Compose...")
-        return subprocess.run(
-            ["docker", "compose", "-f", str(compose_file), "down"], cwd=plugin_root
-        ).returncode
-
-    if getattr(args, "logs", False):
-        return subprocess.run(
-            ["docker", "compose", "-f", str(compose_file), "logs", "-f"], cwd=plugin_root
-        ).returncode
-
-    if getattr(args, "status", False):
-        return subprocess.run(
-            ["docker", "compose", "-f", str(compose_file), "ps"], cwd=plugin_root
-        ).returncode
-
-    cmd = ["docker", "compose", "-f", str(compose_file), "up", "-d"]
-    if getattr(args, "build", False):
-        cmd.append("--build")
-
+def _build_compose_env(args: argparse.Namespace) -> tuple[dict[str, str], str, str]:
+    """Construye las variables de entorno para Docker Compose."""
     env = os.environ.copy()
     agent_port = getattr(args, "agent_port", None) or getattr(args, "port", None)
     if agent_port is not None:
@@ -176,31 +168,38 @@ def handle_run(args: argparse.Namespace) -> int:
         env["DASHBOARD_PORT"] = str(dashboard_port)
     if getattr(args, "host", None):
         env["HOST"] = str(args.host)
+    return env, env.get("DASHBOARD_PORT", "8880"), env.get("AGENT_PORT", "8881")
 
-    effective_agent_port = env.get("AGENT_PORT", "8881")
-    effective_dashboard_port = env.get("DASHBOARD_PORT", "8880")
 
+def handle_run(args: argparse.Namespace) -> int:
+    """Lanza o gestiona el entorno Docker Compose autónomo del plugin."""
+    plugin_root = _find_plugin_root()
+    compose_file = _find_compose_file(plugin_root)
+    if not compose_file:
+        print(f"❌ No se encontró 'docker-compose.yml' en {plugin_root}.", file=sys.stderr)
+        return 1
+
+    sub_actions = {
+        "down": (
+            ["docker", "compose", "-f", str(compose_file), "down"],
+            "🛑 Deteniendo entorno Docker Compose...",
+        ),
+        "logs": (["docker", "compose", "-f", str(compose_file), "logs", "-f"], None),
+        "status": (["docker", "compose", "-f", str(compose_file), "ps"], None),
+    }
+    for flag, (action_cmd, msg) in sub_actions.items():
+        if getattr(args, flag, False):
+            if msg:
+                print(msg)
+            return subprocess.run(action_cmd, cwd=plugin_root).returncode
+
+    cmd = ["docker", "compose", "-f", str(compose_file), "up", "-d"]
+    if getattr(args, "build", False):
+        cmd.append("--build")
+
+    env, eff_dash_port, eff_agent_port = _build_compose_env(args)
     print(f"🐳 Iniciando stack Docker Compose autónomo ({compose_file.name})...")
     res = subprocess.run(cmd, cwd=plugin_root, env=env)
-    if res.returncode != 0:
-        return res.returncode
-
-    subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(compose_file),
-            "exec",
-            "-T",
-            "jg_dashboard",
-            "php",
-            "artisan",
-            "tinker",
-            "--execute=\\App\\Models\\Agent::where('agent_id', 'a0000000-0000-0000-0000-000000000002')->delete();",
-        ],
-        cwd=plugin_root,
-        capture_output=True,
-    )
-    _print_run_summary(effective_dashboard_port, effective_agent_port)
-    return 0
+    if res.returncode == 0:
+        _print_run_summary(eff_dash_port, eff_agent_port)
+    return res.returncode

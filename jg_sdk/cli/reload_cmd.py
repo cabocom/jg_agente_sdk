@@ -15,6 +15,8 @@ import time
 
 import httpx
 
+from jg_sdk.cli.common import KNOWN_AGENTS
+
 
 def _reload_agent(a_container: str, a_port: int, a_name: str) -> None:
     """Reinicia un agente cognitivo específico y verifica su salud."""
@@ -43,7 +45,7 @@ def _reload_agent(a_container: str, a_port: int, a_name: str) -> None:
             if r.status_code == 200:
                 healthy = True
                 break
-        except Exception:
+        except (httpx.RequestError, httpx.HTTPError):
             pass
         time.sleep(1)
 
@@ -71,7 +73,7 @@ def _reload_agent(a_container: str, a_port: int, a_name: str) -> None:
             print(
                 f"   🛠️  Herramientas    ({data.get('tools_count', 0)}): {', '.join(tools) if tools else 'Ninguna'}"
             )
-    except Exception:
+    except (httpx.RequestError, httpx.HTTPError):
         pass
     print("   ✨ Plugins sincronizados con éxito.")
 
@@ -81,18 +83,12 @@ def handle_reload(args: argparse.Namespace) -> int:
     target = getattr(args, "target", "all") or "all"
     target = target.lower()
 
-    agents_map = [
-        ("conversacional", "jg_agente_conversacional", 8001, "Agente Conversacional"),
-        ("devops", "jg_agente_devops", 8002, "Agente DevOps"),
-        ("datosgob", "jg_agente_datosgob", 8881, "Agente Datos Gob"),
-    ]
-
     print("=" * 65)
     print("🔌 Recargando plugins de agentes cognitivos...")
     print("=" * 65)
 
     matched = False
-    for a_key, a_container, a_port, a_name in agents_map:
+    for a_key, a_container, a_port, a_name in KNOWN_AGENTS:
         if target in ("all", a_key):
             matched = True
             _reload_agent(a_container, a_port, a_name)

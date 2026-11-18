@@ -91,7 +91,7 @@ def _clean_symlinks(plugin_name: str, raw_slug: str, target_dir: Path | str | No
                     f"🔗 Enlace simbólico '{candidate_name}' desvinculado con éxito de: {target_plugins}"
                 )
                 unlinked_any = True
-            except Exception as exc:
+            except OSError as exc:
                 print(f"   ⚠️  Fallo al desvincular '{candidate_name}': {exc}")
     if not unlinked_any:
         print(f"🔗 Enlaces en jg_agente: Ninguno activo en {target_plugins.name}/.")
