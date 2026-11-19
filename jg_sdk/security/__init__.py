@@ -14,6 +14,7 @@ from jg_sdk.security.ssrf import (
     RFC1918_NETWORKS,
     SSRFValidationError,
     SSRFValidator,
+    build_pinned_info,
 )
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "RFC1918_NETWORKS",
     "SSRFValidationError",
     "SSRFValidator",
+    "build_pinned_info",
 ]

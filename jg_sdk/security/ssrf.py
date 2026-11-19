@@ -80,6 +80,9 @@ def _build_pinned_info(parsed: Any, hostname: str, chosen_ip: str) -> dict[str, 
     }
 
 
+build_pinned_info = _build_pinned_info
+
+
 class SSRFValidator:
     """Validador central de destinos de red contra ataques SSRF y DNS Rebinding."""
 
