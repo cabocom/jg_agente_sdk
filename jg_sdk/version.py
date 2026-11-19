@@ -7,6 +7,6 @@
 
 """Definición canónica de versión del SDK jg_agente_sdk."""
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 __all__ = ["__version__"]
