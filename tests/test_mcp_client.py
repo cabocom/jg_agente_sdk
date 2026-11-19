@@ -14,6 +14,7 @@ import httpx
 import pytest
 
 from jg_sdk.mcp import (
+    McpClientError,
     McpHttpClient,
     SchemaDriftError,
     compute_canonical_schema_hash,
@@ -238,6 +239,65 @@ async def test_mcp_client_rejects_ssrf_redirect_localhost() -> None:
     )
     with pytest.raises(SSRFValidationError, match="Redirección.*prohibida"):
         await client.initialize()
+
+
+@pytest.mark.asyncio
+async def test_mcp_client_redirect_safe_rejected_by_default() -> None:
+    """Verifica que con follow_redirects=False (default), una redirección 302 a destino seguro lanza McpClientError."""
+
+    def handle_redirect(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            302,
+            headers={"Location": "https://api.mockmcp.com/v2/mcp"},
+            request=request,
+        )
+
+    transport = httpx.MockTransport(handle_redirect)
+    validator = SSRFValidator(allowed_hosts=["api.mockmcp.com"])
+    client = McpHttpClient(
+        base_url="https://api.mockmcp.com",
+        transport=transport,
+        ssrf_validator=validator,
+    )
+    with pytest.raises(McpClientError, match="Redirección HTTP 302 no permitida en transporte MCP"):
+        await client.initialize()
+
+
+@pytest.mark.asyncio
+async def test_mcp_client_redirect_safe_followed_when_enabled() -> None:
+    """Verifica que con follow_redirects=True, una redirección a destino seguro es seguida correctamente."""
+
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/mcp":
+            return httpx.Response(
+                302,
+                headers={"Location": "https://api.mockmcp.com/mcp/v2"},
+                request=request,
+            )
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": json.loads(request.content.decode())["id"],
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "serverInfo": {"name": "redirected-mcp-server", "version": "1.0.0"},
+                },
+            },
+            request=request,
+        )
+
+    transport = httpx.MockTransport(handle_request)
+    validator = SSRFValidator(allowed_hosts=["api.mockmcp.com"])
+    client = McpHttpClient(
+        base_url="https://api.mockmcp.com/mcp",
+        transport=transport,
+        ssrf_validator=validator,
+        follow_redirects=True,
+    )
+    res = await client.initialize()
+    assert res["serverInfo"]["name"] == "redirected-mcp-server"
 
 
 def test_serialization_primitives_safety() -> None:

@@ -214,7 +214,7 @@ class SSRFValidator:
                 if blocked:
                     return False, f"Resolución DNS de '{hostname}' vulnera política: {reason}"
             return True, None
-        except Exception as exc:
+        except (SSRFValidationError, OSError) as exc:
             return False, str(exc)
 
     async def validate_url_async(
@@ -233,9 +233,11 @@ class SSRFValidator:
             try:
                 port = parsed.port or (443 if parsed.scheme == "https" else 80)
                 ips = self.resolve_host(hostname, port)
-                chosen_ip = ips[0] if ips else "127.0.0.1"
-            except Exception:
-                chosen_ip = "127.0.0.1"
+                if not ips:
+                    return False, f"No se obtuvieron direcciones IP para '{hostname}'", None
+                chosen_ip = ips[0]
+            except (SSRFValidationError, OSError) as exc:
+                return False, f"Fallo en resolución DNS para '{hostname}': {exc}", None
         return True, None, _build_pinned_info(parsed, hostname, chosen_ip)
 
     def _resolve_and_check_dns(
@@ -248,7 +250,7 @@ class SSRFValidator:
                 return False, f"No se obtuvieron direcciones IP para '{hostname}'", None
         except SSRFValidationError as exc:
             return False, str(exc), None
-        except Exception as exc:
+        except OSError as exc:
             return False, f"Fallo en resolución DNS para '{hostname}': {exc}", None
 
         for ip_str in ips:

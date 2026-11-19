@@ -134,3 +134,13 @@ def test_resolve_and_pin_nonexistent_host() -> None:
     assert reason is not None
     assert "Fallo en resolución DNS" in reason or "gaierror" in reason
     assert pin_info is None
+
+
+def test_resolve_and_pin_nonexistent_host_enforce_false() -> None:
+    """Verifica que enforce=False ante fallo DNS devuelve ok=False sin inventar IP 127.0.0.1."""
+    val = SSRFValidator(enforce=False)
+    ok, reason, pin_info = val.resolve_and_pin_url("https://nonexistent.invalid/test")
+    assert ok is False
+    assert reason is not None
+    assert "Fallo en resolución DNS" in reason or "gaierror" in reason
+    assert pin_info is None

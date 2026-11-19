@@ -57,17 +57,24 @@ class McpHttpClient:
         self._discovered_tools: dict[str, dict[str, Any]] = {}
         self._initialized = False
 
+    async def _assert_redirect_safe(self, response: httpx.Response) -> str | None:
+        """Valida que la cabecera Location de una redirección cumpla la política anti-SSRF."""
+        if not (response.is_redirect or (300 <= response.status_code < 400)):
+            return None
+        location = response.headers.get("Location")
+        if not location:
+            return None
+        redirect_url = str(response.url.join(location))
+        is_safe, reason = await self._ssrf_validator.validate_url_async(redirect_url)
+        if not is_safe:
+            raise SSRFValidationError(
+                f"Redirección HTTP {response.status_code} prohibida por política SSRF hacia '{redirect_url}': {reason}",
+                target=redirect_url,
+            )
+        return redirect_url
+
     async def _on_response(self, response: httpx.Response) -> None:
-        if response.is_redirect:
-            location = response.headers.get("Location")
-            if location:
-                redirect_url = str(response.url.join(location))
-                is_safe, reason = await self._ssrf_validator.validate_url_async(redirect_url)
-                if not is_safe:
-                    raise SSRFValidationError(
-                        f"Redirección prohibida por política SSRF hacia '{redirect_url}': {reason}",
-                        target=redirect_url,
-                    )
+        await self._assert_redirect_safe(response)
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Inicializa y devuelve el cliente HTTP tras validar la URL contra SSRF."""
@@ -89,16 +96,9 @@ class McpHttpClient:
         return self._client
 
     async def _check_response_status(self, response: httpx.Response) -> None:
+        await self._assert_redirect_safe(response)
         if response.is_redirect or (300 <= response.status_code < 400):
             location = response.headers.get("Location", "")
-            if location:
-                redirect_url = str(response.url.join(location))
-                is_safe, reason = await self._ssrf_validator.validate_url_async(redirect_url)
-                if not is_safe:
-                    raise SSRFValidationError(
-                        f"Redirección HTTP {response.status_code} prohibida por política SSRF hacia '{redirect_url}': {reason}",
-                        target=redirect_url,
-                    )
             raise McpClientError(
                 f"Redirección HTTP {response.status_code} no permitida en transporte MCP hacia '{location}'",
                 code=response.status_code,
